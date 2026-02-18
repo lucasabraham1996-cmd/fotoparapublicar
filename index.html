@@ -1,0 +1,1068 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Download, Upload, Link as LinkIcon, Image as ImageIcon, Type, Layout, Palette, Plus, X, Trash2, GripVertical, CheckSquare, Square, Eye, Maximize2, Minimize2, Save, Trophy, Move, Tag, ZoomIn, ArrowRightLeft, ArrowUpDown } from 'lucide-react';
+
+// --- CARGA DE HTML2CANVAS ---
+const useHtml2Canvas = () => {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (window.html2canvas) { setReady(true); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.async = true;
+    script.onload = () => setReady(true);
+    document.body.appendChild(script);
+  }, []);
+  return ready ? window.html2canvas : null;
+};
+
+// --- COMPONENTE DE IMAGEN HÍBRIDO (Visible + Descargable) ---
+const CorsImg = ({ src, alt, className, style }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+
+  useEffect(() => {
+    // Si cambia el src, reseteamos a la url original primero para inmediatez
+    setImgSrc(src);
+    
+    if (!src || src.startsWith('data:') || src.startsWith('blob:')) return;
+
+    let isActive = true;
+    const convert = async () => {
+        try {
+            // Usamos un proxy de alto rendimiento para cors
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`;
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (isActive) setImgSrc(reader.result); // Reemplazamos con base64 seguro cuando esté listo
+            };
+            reader.readAsDataURL(blob);
+        } catch (e) {
+            // Si falla el proxy, mantenemos la URL original (se verá, aunque quizás falle la descarga de ese elemento específico)
+            console.warn("Proxy falló, usando original:", src);
+        }
+    };
+    convert();
+    return () => { isActive = false; };
+  }, [src]);
+
+  return <img src={imgSrc} alt={alt} className={className} style={style} crossOrigin="anonymous" />;
+};
+
+// --- BASE DE DATOS DE IMÁGENES ---
+const TEAMS_DB = [
+    { name: 'AAAJ', url: 'https://i.postimg.cc/g2P2Krrm/AAAJ.png' },
+    { name: 'Aldosivi', url: 'https://i.postimg.cc/fRhRvkky/Aldosivi.png' },
+    { name: 'Argentino de Merlo', url: 'https://i.postimg.cc/3xHxZWWJ/Argentino-de-Merlo.png' },
+    { name: 'Atlético Rafaela', url: 'https://i.postimg.cc/VkckF551/Atletico-Rafaela.png' },
+    { name: 'Banfield', url: 'https://i.postimg.cc/htqt0hhm/Banfield.png' },
+    { name: 'Barracas Central', url: 'https://i.postimg.cc/mgGgShhC/Barracas-Central.png' },
+    { name: 'Belgrano', url: 'https://i.postimg.cc/T3X3chh9/Belgrano.png' },
+    { name: 'Boca Juniors', url: 'https://i.postimg.cc/g2P2Krrs/Boca.png' },
+    { name: 'Central Córdoba', url: 'https://i.postimg.cc/pLYXcxnz/Central-Cordoba.png' },
+    { name: 'Colón', url: 'https://i.postimg.cc/pLYXcxnK/Colon.png' },
+    { name: 'Independiente Rivadavia', url: 'https://i.postimg.cc/Hk4svH7v/CSIR.png' },
+    { name: 'Defensa y Justicia', url: 'https://i.postimg.cc/K8rvpFgs/Defensa.png' },
+    { name: 'Deportivo Armenio', url: 'https://i.postimg.cc/FHgsCmJD/Deportivo-Armenio.png' },
+    { name: 'Estudiantes LP', url: 'https://i.postimg.cc/Z5FKsZyg/EDLP.png' },
+    { name: 'Estudiantes RC', url: 'https://i.postimg.cc/pdWVg7Dw/Estudiantes-RC.png' },
+    { name: 'Ferro', url: 'https://i.postimg.cc/vmY8pjrR/f-ERRO.png' },
+    { name: 'Gimnasia LP', url: 'https://i.postimg.cc/ZqbY1g8W/GELP.png' },
+    { name: 'Gimnasia Mza', url: 'https://i.postimg.cc/pdWVg7fy/Gimnasia-y-esgrima-(Mza).png' },
+    { name: 'Godoy Cruz', url: 'https://i.postimg.cc/rpfycJjF/Godoy-Cruz.png' },
+    { name: 'Huracán', url: 'https://i.postimg.cc/tgqRLf3n/Huracan.png' },
+    { name: 'Independiente', url: 'https://i.postimg.cc/Lsx4RTDt/Independiente.png' },
+    { name: 'Instituto', url: 'https://i.postimg.cc/N0dGY4D8/Instituto.png' },
+    { name: 'Lanús', url: 'https://i.postimg.cc/fb8WZKCf/Lanus.png' },
+    { name: 'Matienzo', url: 'https://i.postimg.cc/9fLXVpbT/Matienzo-Monte-Guey.png' },
+    { name: 'Newells', url: 'https://i.postimg.cc/HL6WH2zZ/Newells.png' },
+    { name: 'Platense', url: 'https://i.postimg.cc/QtV8MTYQ/Platense.png' },
+    { name: 'Quilmes', url: 'https://i.postimg.cc/SsjSKM1D/Quilmes.png' },
+    { name: 'Racing', url: 'https://i.postimg.cc/NMLs0HCd/Racing.png' },
+    { name: 'Riestra', url: 'https://i.postimg.cc/85spC6X3/Riestra.png' },
+    { name: 'River Plate', url: 'https://i.postimg.cc/mDhLrH6W/River.png' },
+    { name: 'Rosario Central', url: 'https://i.postimg.cc/qRgJ73Z0/Rosario-Central.png' },
+    { name: 'San Lorenzo', url: 'https://i.postimg.cc/nz5H9h6J/San-Lorenzo.png' },
+    { name: 'San Luis FC', url: 'https://i.postimg.cc/XJXjvCD0/San-Luis-FC.png' },
+    { name: 'Sarmiento', url: 'https://i.postimg.cc/fLFwSR6w/Sarmiento.png' },
+    { name: 'SAT', url: 'https://i.postimg.cc/QtPXKdRj/SAT.png' },
+    { name: 'San Martín SJ', url: 'https://i.postimg.cc/63S94pD2/SMSJ.png' },
+    { name: 'Sportivo Barracas', url: 'https://i.postimg.cc/63S94pD7/Sportivo-Barracas.png' },
+    { name: 'Talleres (Escudo T)', url: 'https://i.postimg.cc/wMm9XdpJ/Talleres.png' },
+    { name: 'Talleres (1913)', url: 'https://i.postimg.cc/Y9VpLCJY/Talleres-1913.png' },
+    { name: 'Talleres (Moderno)', url: 'https://i.postimg.cc/ZndJ8hSd/Talleres-2.png' },
+    { name: 'Tigre', url: 'https://i.postimg.cc/0jw9YqsG/Tigre.png' },
+    { name: 'Atlético Tucumán', url: 'https://i.postimg.cc/KjMmPy2f/Tucuman.png' },
+    { name: 'Unión', url: 'https://i.postimg.cc/kGb7QdmZ/Union.png' },
+    { name: 'Vélez', url: 'https://i.postimg.cc/G9ndzSLz/Velez.png' }
+];
+
+const LEAGUES_DB = [
+    { name: 'Copa Argentina', url: 'https://i.postimg.cc/Bns1nm50/Copa-Argentina.png' },
+    { name: 'Copa Córdoba', url: 'https://i.postimg.cc/523QY8pV/Copa-Cordoba.png' },
+    { name: 'Femenino', url: 'https://i.postimg.cc/nhZQh3KZ/Femenino.png' },
+    { name: 'Liga Profesional', url: 'https://i.postimg.cc/cLmtgfTC/Liga-Profesional-2026.png' },
+    { name: 'Torneo Proyección', url: 'https://i.postimg.cc/RZRJ6wGm/Torneo-Proyeccion.png' }
+];
+
+const THEME = {
+  bg: '#021024',
+  accent: '#1D4ED8',
+  text: '#FFFFFF',
+  darkText: '#021024',
+  logo: 'https://i.postimg.cc/GtKJrSqj/Logo.png'
+};
+
+const TEMPLATES = {
+  ESTADISTICAS: 'estadisticas',
+  CONVOCADOS: 'convocados',
+  NOTICIA_ESPECIAL: 'noticia_especial',
+  NOTICIA_COMUN: 'noticia_comun',
+  FORMACION: 'formacion',
+  RESULTADO: 'resultado',
+};
+
+const INITIAL_ROSTER = [
+  { name: 'Santino Barbi', number: 1, pos: 'Arquero' },
+  { name: 'Jeremias Florentin', number: 12, pos: 'Arquero' },
+  { name: 'Guido Herrera', number: 22, pos: 'Arquero' },
+  { name: 'Matias Catalan', number: 4, pos: 'Defensor' },
+  { name: 'Juan Rodriguez', number: 6, pos: 'Defensor' },
+  { name: 'Rodrigo Guth', number: 14, pos: 'Defensor' },
+  { name: 'Miguel Navarro', number: 16, pos: 'Defensor' },
+  { name: 'Jose Luis Palomino', number: 19, pos: 'Defensor' },
+  { name: 'Augusto Schott', number: 20, pos: 'Defensor' },
+  { name: 'Gabriel Baez', number: 23, pos: 'Defensor' },
+  { name: 'Alex Vigo', number: 28, pos: 'Defensor' },
+  { name: 'Lucio Ferrari', number: 32, pos: 'Defensor' },
+  { name: 'Facundo Lucero', number: 35, pos: 'Defensor' },
+  { name: 'Santiago Fernandez', number: 44, pos: 'Defensor' },
+  { name: 'Timoteo Chamorro', number: 45, pos: 'Defensor' },
+  { name: 'Matias Galarza', number: 5, pos: 'Mediocampista' },
+  { name: 'Ulises Ortegoza', number: 8, pos: 'Mediocampista' },
+  { name: 'Juan Sforza', number: 13, pos: 'Mediocampista' },
+  { name: 'Matias Gomez', number: 21, pos: 'Mediocampista' },
+  { name: 'Mateo Caceres', number: 26, pos: 'Mediocampista' },
+  { name: 'Giovanni Baroni', number: 30, pos: 'Mediocampista' },
+  { name: 'Lautaro Ortiz', number: 34, pos: 'Mediocampista' },
+  { name: 'Martin Rio', number: 55, pos: 'Mediocampista' },
+  { name: 'Diego Valoyes', number: 7, pos: 'Delantero' },
+  { name: 'Bruno Barticciotto', number: 10, pos: 'Delantero' },
+  { name: 'Valentin Depietri', number: 11, pos: 'Delantero' },
+  { name: 'Ignacio Alastra', number: 24, pos: 'Delantero' },
+  { name: 'Emiliano Chiavassa', number: 36, pos: 'Delantero' },
+  { name: 'Rick', number: 37, pos: 'Delantero' },
+  { name: 'Valentin Davila', number: 49, pos: 'Delantero' },
+  { name: 'Ronaldo Martinez', number: 77, pos: 'Delantero' }
+].map(p => ({...p, selected: false}));
+
+const POS_ORDER = { 'Arquero': 1, 'Defensor': 2, 'Mediocampista': 3, 'Delantero': 4 };
+
+const App = () => {
+  const canvasRef = useRef(null); 
+  const containerRef = useRef(null); 
+  const html2canvas = useHtml2Canvas();
+  
+  const [activeTemplate, setActiveTemplate] = useState(TEMPLATES.ESTADISTICAS);
+  const [image, setImage] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [roster, setRoster] = useState(INITIAL_ROSTER);
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+  
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [previewScale, setPreviewScale] = useState(0.45);
+
+  const [isAdjustingImage, setIsAdjustingImage] = useState(false);
+  const [imagePos, setImagePos] = useState({ x: 0, y: 0 });
+  const [imageScale, setImageScale] = useState(1);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const [data, setData] = useState({
+    statsTitle: 'ESTADÍSTICAS',
+    statsSubtitle: 'VS RIVAL',
+    statsShowMain: false, 
+    statsBigNumber: '148',
+    statsBigLabel: 'PARTIDOS JUGADOS',
+    statsHighlightFirst: false, 
+    statsList: [
+      { value: '62', label: 'VICTORIAS' },
+      { value: '48', label: 'EMPATES' },
+      { value: '38', label: 'DERROTAS' }
+    ],
+    matchInfo: 'DOMINGO 08/02 | 22:15HS | ESTADIO KEMPES',
+    rivalName: 'RIVAL',
+    dtName: 'CARLOS TÉVEZ',
+    newsTitle: 'TÍTULO DE LA NOTICIA',
+    newsShowTag: true,
+    newsTag: 'AHORA',
+    newsTagColor: '#2563EB',
+    newsSubtitle: 'Bajada de la noticia con información relevante. Aquí puedes escribir un resumen breve de lo sucedido.',
+    specialTitle: 'EL 11 QUE PARÓ TÉVEZ',
+    specialBody: 'Aquí puedes redactar el texto completo de la noticia.\n\nSe ajustará automáticamente al espacio disponible en la columna derecha.',
+    formationList: [],
+    resTeam1Logo: TEAMS_DB.find(t => t.name.includes('Talleres'))?.url || null,
+    resTeam2Logo: TEAMS_DB.find(t => t.name.includes('Belgrano'))?.url || null,
+    resTournamentLogo: LEAGUES_DB[0].url,
+    resScore1: '2',
+    resScore2: '0',
+    resColor1: '#1e40af', 
+    resColor2: '#b91c1c', 
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current && !isPreviewMode) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        const scaleX = (width - 40) / 1080;
+        const scaleY = (height - 40) / 1350;
+        const scale = Math.min(scaleX, scaleY, 0.6); 
+        setPreviewScale(Math.max(scale, 0.25)); 
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isPreviewMode]);
+
+  // LOGICA ARRASTRE Y ZOOM IMAGEN (Mouse y Touch)
+  const handleMouseDown = (e) => {
+    if (!isAdjustingImage) return;
+    setDragStart({ x: e.clientX - imagePos.x, y: e.clientY - imagePos.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isAdjustingImage || e.buttons !== 1) return;
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    setImagePos({ x: newX, y: newY });
+  };
+
+  const onMouseDown = (e) => handleMouseDown(e);
+  const onMouseMove = (e) => handleMouseMove(e);
+
+  const onTouchStart = (e) => {
+      if (isAdjustingImage) {
+          const touch = e.touches[0];
+          setDragStart({ x: touch.clientX - imagePos.x, y: touch.clientY - imagePos.y });
+      }
+  };
+  const onTouchMove = (e) => {
+      if (isAdjustingImage) {
+          e.preventDefault(); 
+          const touch = e.touches[0];
+          const newX = touch.clientX - dragStart.x;
+          const newY = touch.clientY - dragStart.y;
+          setImagePos({ x: newX, y: newY });
+      }
+  };
+
+  const togglePlayer = (index, forFormation = false) => {
+    if (forFormation && !roster[index].selected && data.formationList.length >= 11) {
+        alert("Solo puedes seleccionar 11 jugadores para la formación.");
+        return;
+    }
+    const newRoster = [...roster];
+    newRoster[index].selected = !newRoster[index].selected;
+    setRoster(newRoster);
+
+    if (forFormation) {
+        const player = newRoster[index];
+        if (player.selected) {
+            setData(prev => ({...prev, formationList: [...prev.formationList, player]}));
+        } else {
+            setData(prev => ({...prev, formationList: prev.formationList.filter(p => p.name !== player.name)}));
+        }
+    }
+  };
+
+  const updatePlayerNumber = (index, num) => {
+    const newRoster = [...roster];
+    newRoster[index].number = num;
+    setRoster(newRoster);
+  };
+
+  const getSortedConvocados = () => {
+    return roster.filter(p => p.selected).sort((a, b) => {
+        const posA = POS_ORDER[a.pos] || 99;
+        const posB = POS_ORDER[b.pos] || 99;
+        return posA - posB;
+    });
+  };
+
+  const onDragStart = (e, index) => setDraggedItemIndex(index);
+  const onDragOver = (e) => e.preventDefault();
+  const onDrop = (e, index) => {
+    const newList = [...data.formationList];
+    const draggedItem = newList[draggedItemIndex];
+    newList.splice(draggedItemIndex, 1);
+    newList.splice(index, 0, draggedItem);
+    setData(prev => ({ ...prev, formationList: newList }));
+    setDraggedItemIndex(null);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => { setImage(reader.result); setImagePos({x:0, y:0}); setImageScale(1); };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleSpecificImageUpload = (field, e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setData(prev => ({ ...prev, [field]: reader.result }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSelectImage = (field, url) => {
+      setData(prev => ({ ...prev, [field]: url }));
+  };
+
+  const handleUrlInput = () => {
+    const url = prompt("Ingresa la URL de la imagen:");
+    if (url) { 
+        setImage(url); 
+        setImagePos({x:0, y:0});
+        setImageScale(1); 
+    }
+  };
+  
+  const handlePaste = (e) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        const reader = new FileReader();
+        reader.onloadend = () => { setImage(reader.result); setImagePos({x:0, y:0}); setImageScale(1); };
+        reader.readAsDataURL(blob);
+      }
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!html2canvas || !canvasRef.current) return;
+    setLoading(true);
+    setIsAdjustingImage(false);
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    try {
+      const canvas = await html2canvas(canvasRef.current, {
+        scale: 3, 
+        useCORS: true, 
+        backgroundColor: THEME.bg,
+        width: 1080,
+        height: 1350,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+        onclone: (documentClone) => {
+            const element = documentClone.querySelector('.shadow-2xl.relative');
+            if (element) element.style.transform = 'none';
+        }
+      });
+      const link = document.createElement('a');
+      link.download = `grafica-${activeTemplate}-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      link.click();
+    } catch (err) { 
+        console.error(err);
+        alert("Error al generar imagen. Intenta nuevamente."); 
+    }
+    setLoading(false);
+  };
+
+  const titleGradientClass = "bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400";
+  const accentGradientClass = "bg-clip-text text-transparent bg-gradient-to-b from-[#1D4ED8] to-[#0F3577]";
+
+  const BackgroundImage = () => (
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          {image && (
+              <img 
+                src={image} 
+                crossOrigin="anonymous" 
+                alt="Background" 
+                className="absolute min-w-full min-h-full max-w-none object-cover transition-transform duration-100" 
+                style={{ 
+                    transform: `translate(calc(-50% + ${imagePos.x}px), calc(-50% + ${imagePos.y}px)) scale(${imageScale})`,
+                    left: '50%', top: '50%',
+                }}
+              />
+          )}
+          <div className="absolute inset-0 bg-[#021024]/20 mix-blend-multiply" />
+      </div>
+  );
+
+  const LogoComponent = () => (
+      <CorsImg src={THEME.logo} alt="Logo" className="h-24 w-auto object-contain drop-shadow-lg" />
+  );
+
+  const renderEstadisticas = () => {
+    const count = data.statsList.length;
+    const totalItems = data.statsShowMain ? count + 1 : count;
+    
+    let dynamicSizeClass = 'text-[9rem]'; 
+    let gapClass = 'gap-8';
+
+    if (totalItems >= 7) {
+        dynamicSizeClass = 'text-7xl';
+        gapClass = 'gap-2';
+    } else if (totalItems >= 5) {
+        dynamicSizeClass = 'text-8xl';
+        gapClass = 'gap-4';
+    }
+
+    return (
+    <div className="w-full h-full relative flex canvas-target">
+        <BackgroundImage />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[rgba(2,16,36,0.5)] to-[#021024] via-40%" />
+        
+        <div className="relative z-10 w-full h-full flex flex-col items-end pr-24 pt-32 pb-10">
+            <div className="text-right mb-4 flex-none py-2 pr-4">
+                <h1 className={`text-9xl font-bebas tracking-tighter leading-[0.9] ${accentGradientClass} pr-2`}>
+                    {data.statsTitle}
+                </h1>
+                <h2 className="text-5xl font-bebas text-white tracking-widest mt-2 uppercase drop-shadow-md pr-2">
+                    {data.statsSubtitle}
+                </h2>
+            </div>
+            
+            <div className="flex-grow flex flex-row items-stretch justify-end w-full overflow-hidden my-4 relative">
+                <div className="w-1.5 h-full rounded-full shadow-lg mr-12" style={{ backgroundColor: THEME.accent }}></div>
+                <div className={`flex flex-col items-end justify-center ${gapClass} h-full`}>
+                    
+                    {data.statsShowMain && (
+                        <>
+                            <div className="text-right flex flex-col justify-center py-4">
+                                <span className={`block font-bebas leading-[0.85] text-white drop-shadow-2xl scale-y-110 ${data.statsHighlightFirst ? 'text-[13rem]' : dynamicSizeClass}`} style={{ color: data.statsHighlightFirst ? THEME.accent : 'white' }}>
+                                    {data.statsBigNumber}
+                                </span>
+                                <span className="text-3xl font-bold tracking-widest text-white uppercase block mt-1 drop-shadow-md">
+                                    {data.statsBigLabel}
+                                </span>
+                            </div>
+                            <div className="w-full h-[2px] bg-white opacity-80 shadow-md"></div>
+                        </>
+                    )}
+
+                    {!data.statsHighlightFirst && !data.statsShowMain && null}
+
+                    {data.statsList.map((stat, idx) => (
+                        <React.Fragment key={idx}>
+                            <div className="text-right flex flex-col justify-center py-4">
+                                <span className={`block font-bebas leading-[0.9] ${dynamicSizeClass} drop-shadow-lg`} style={{ color: 'white' }}>
+                                    {stat.value}
+                                </span>
+                                <span className="text-2xl font-bold tracking-widest uppercase drop-shadow-md" style={{ color: THEME.accent }}>
+                                    {stat.label}
+                                </span>
+                            </div>
+                            {idx !== data.statsList.length - 1 && (
+                                <div className="w-full h-[1px] bg-white/50"></div>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex-none pt-4">
+                <LogoComponent />
+            </div>
+        </div>
+    </div>
+  )};
+
+  const renderConvocados = () => {
+    const selectedPlayers = getSortedConvocados();
+    const count = selectedPlayers.length;
+    const midPoint = Math.ceil(count / 2);
+    const col1 = selectedPlayers.slice(0, midPoint);
+    const col2 = selectedPlayers.slice(midPoint);
+    const maxPlayersPerCol = Math.max(col1.length, col2.length);
+    
+    let textSizeClass = "text-5xl"; 
+    let numberSizeClass = "text-4xl";
+    let gapClass = "gap-3";
+
+    if (maxPlayersPerCol > 12) {
+        textSizeClass = "text-[2.5rem]";
+        numberSizeClass = "text-3xl";
+        gapClass = "gap-1"; 
+    } else if (maxPlayersPerCol > 10) {
+        textSizeClass = "text-[3rem]"; 
+        gapClass = "gap-2";
+    }
+
+    return (
+        <div className="w-full h-full relative flex flex-col canvas-target">
+            <BackgroundImage />
+            <div className="absolute inset-0 bg-[#021024]/85 mix-blend-multiply" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-transparent to-transparent" />
+            
+            <div className="relative z-10 p-14 h-full flex flex-col">
+                <div className="border-b-2 pb-4 mb-4 flex justify-between items-center flex-none" style={{ borderColor: 'white' }}>
+                    <p className="text-white text-xl font-bold tracking-[0.2em] uppercase">{data.matchInfo}</p>
+                </div>
+                
+                <div className="mb-4 flex flex-col items-start gap-1 flex-none border-l-8 pl-6" style={{ borderColor: THEME.accent }}>
+                    <h1 className={`text-8xl font-bebas font-bold uppercase leading-none ${titleGradientClass}`}>
+                        CONVOCADOS
+                    </h1>
+                    <h2 className="text-6xl font-bebas text-white tracking-wide uppercase mt-2 drop-shadow-lg">
+                        VS <span style={{color: THEME.accent}}>{data.rivalName}</span>
+                    </h2>
+                </div>
+
+                <div className="flex-grow flex items-start justify-center overflow-hidden py-2">
+                    <div className="grid grid-cols-2 gap-20 w-full">
+                        <div className={`flex flex-col justify-start ${gapClass}`}>
+                            {col1.map((p, i) => (
+                                <div key={i} className="flex items-baseline gap-5 border-b border-white/10 pb-1">
+                                    <span className={`${numberSizeClass} font-orbitron font-bold`} style={{ color: THEME.accent }}>{p.number}.</span>
+                                    <span className={`${textSizeClass} font-bebas text-white tracking-wide truncate`}>{p.name.toUpperCase()}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className={`flex flex-col justify-start ${gapClass}`}>
+                            {col2.map((p, i) => (
+                                <div key={i} className="flex items-baseline gap-5 border-b border-white/10 pb-1">
+                                    <span className={`${numberSizeClass} font-orbitron font-bold`} style={{ color: THEME.accent }}>{p.number}.</span>
+                                    <span className={`${textSizeClass} font-bebas text-white tracking-wide truncate`}>{p.name.toUpperCase()}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-auto flex justify-between items-end border-t border-gray-600 pt-6 flex-none bg-[#021024]/50 p-2 rounded-t-lg backdrop-blur-sm">
+                    <div>
+                        <p className="text-3xl font-bold text-white tracking-widest uppercase mb-1" style={{color: THEME.accent}}>DT {data.dtName}</p>
+                        <p className="text-sm text-gray-400 tracking-[0.3em] uppercase">EL ÚNICO GRANDE CORDOBÉS</p>
+                    </div>
+                    <LogoComponent />
+                </div>
+            </div>
+        </div>
+    );
+  };
+
+  const renderNoticiaEspecial = () => (
+    <div className="w-full h-full relative flex items-center justify-center bg-[#021024] canvas-target">
+        <div className="absolute inset-0 z-0 opacity-30">
+             <BackgroundImage />
+             <div className="absolute inset-0 backdrop-grayscale" /> 
+        </div>
+        <div className="relative z-10 w-full h-full flex p-16 items-stretch">
+            <div className="w-[45%] flex flex-col justify-center items-start pr-10 border-r-4 border-blue-600" style={{borderColor: THEME.accent}}>
+                <h1 className={`text-[8rem] font-bebas leading-[0.85] uppercase drop-shadow-2xl text-left ${titleGradientClass}`} style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
+                    {data.specialTitle}
+                </h1>
+            </div>
+            <div className="w-[55%] flex flex-col pl-12 justify-center h-full">
+                <div className="text-white text-5xl font-bebas leading-tight tracking-wide whitespace-pre-wrap drop-shadow-md">
+                    {data.specialBody}
+                </div>
+            </div>
+        </div>
+        <div className="absolute bottom-12 right-12">
+             <LogoComponent />
+        </div>
+    </div>
+  );
+
+  const renderNoticiaComun = () => (
+    <div className="w-full h-full relative canvas-target">
+         <BackgroundImage />
+         <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-[#021024]/80 to-transparent via-30%" />
+        
+        <div className="absolute top-10 right-10 z-20 drop-shadow-lg">
+             <LogoComponent />
+        </div>
+
+        <div className="relative z-10 w-full h-full flex flex-col justify-end pb-20 px-12 text-center">
+            {/* SOLAPA SUPERIOR (TAG) - OPCIONAL */}
+            {data.newsShowTag && (
+                <div className="mb-0 inline-block mx-auto">
+                    <span 
+                        className="px-6 py-2 text-3xl font-bebas font-bold text-white uppercase tracking-widest shadow-lg"
+                        style={{ backgroundColor: data.newsTagColor }}
+                    >
+                        {data.newsTag}
+                    </span>
+                </div>
+            )}
+            {/* TÍTULO PRINCIPAL */}
+            <div className="mb-8 inline-block mx-auto px-10 py-6 shadow-xl relative z-20" style={{ backgroundColor: '#021024' }}> 
+                 <h1 className={`text-9xl font-bebas uppercase leading-none tracking-tight ${accentGradientClass}`}> 
+                     {data.newsTitle}
+                 </h1>
+            </div>
+            <p className="text-6xl text-white font-bebas tracking-wide max-w-[95%] mx-auto leading-tight drop-shadow-2xl relative z-20">
+                {data.newsSubtitle}
+            </p>
+        </div>
+    </div>
+  );
+
+  const renderFormacion = () => (
+    <div className="w-full h-full relative bg-[#021024] flex flex-col items-center canvas-target">
+        <div className="absolute inset-0 z-0">
+            <BackgroundImage />
+            <div className="absolute inset-0 bg-[#021024]/60 mix-blend-multiply" />
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+            <div className="w-[80%] h-[80%] bg-white rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="relative z-10 w-full h-full flex flex-col items-center pt-16 pb-8 px-12">
+            <h3 className="text-white font-bold tracking-[0.3em] text-2xl uppercase mb-6 border-b-2 pb-2 px-12 flex-none">
+                {data.matchInfo}
+            </h3>
+            <h1 className="text-[10rem] font-bebas uppercase mb-4 leading-none tracking-tighter text-center flex-none">
+                 <span className={`${titleGradientClass} drop-shadow-2xl`}>FORMACIÓN</span> 
+                 {' '}
+                 <span className={accentGradientClass}>INICIAL</span>
+            </h1>
+            
+            <div className="flex flex-col items-center flex-grow justify-center w-full gap-2"> 
+                {data.formationList.map((player, idx) => (
+                    <div key={idx} className="text-center w-full relative group flex items-center justify-center gap-6 h-[7%]">
+                        <span className="text-5xl font-orbitron font-bold" style={{ color: THEME.accent }}>
+                            {player.number}
+                        </span>
+                        <span className="text-6xl font-bebas text-white tracking-widest drop-shadow-lg uppercase">
+                            {player.name}
+                        </span>
+                    </div>
+                ))}
+                {data.formationList.length === 0 && (
+                    <p className="text-white/50 text-2xl">SELECCIONA 11 JUGADORES</p>
+                )}
+            </div>
+
+            <div className="mt-6 flex flex-col items-center gap-2 flex-none">
+                <div className="bg-[#021024] px-8 py-2 rounded-full border border-blue-900 shadow-xl">
+                    <span className="text-3xl font-bold text-white tracking-widest uppercase drop-shadow-lg">
+                        DT {data.dtName}
+                    </span>
+                </div>
+                <LogoComponent />
+            </div>
+        </div>
+    </div>
+  );
+
+  const renderResultado = () => (
+    <div className="w-full h-full relative canvas-target">
+        <BackgroundImage />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-[#021024]/80 to-transparent via-30%" />
+
+        {/* LOGO TORNEO - Pequeño y con fondo azul oscuro */}
+        {data.resTournamentLogo && (
+            <div 
+                className="absolute top-0 left-0 z-20 pl-8 pr-12 pt-8 pb-12 rounded-br-full"
+                style={{ background: `radial-gradient(circle at top left, #0F3577EE, transparent 70%)` }}
+            >
+                <CorsImg 
+                    src={data.resTournamentLogo} 
+                    alt="Torneo" 
+                    className="h-12 w-auto drop-shadow-lg" 
+                />
+            </div>
+        )}
+
+        <div className="absolute top-10 right-10 z-20 drop-shadow-lg">
+             <LogoComponent />
+        </div>
+
+        <div className="relative z-10 w-full h-full flex flex-col items-center justify-end pb-32">
+            <div className="mb-8">
+                <h1 className="text-7xl font-orbitron font-black text-white/10 tracking-[0.2em] uppercase select-none">
+                    RESULTADO FINAL
+                </h1>
+            </div>
+
+            <div className="flex items-stretch shadow-2xl rounded-3xl overflow-hidden border border-white/10 backdrop-blur-md">
+                
+                {/* Equipo 1 */}
+                <div className="flex flex-col w-56">
+                    {/* Cuadro Escudo - h-32 */}
+                    <div 
+                        className="h-32 flex items-center justify-center relative"
+                        style={{ background: `linear-gradient(to bottom, ${data.resColor1}CC, ${data.resColor1}33)` }}
+                    >
+                        {data.resTeam1Logo ? (
+                            <CorsImg src={data.resTeam1Logo} alt="Equipo 1" className="w-24 h-24 object-contain drop-shadow-2xl z-10" />
+                        ) : (
+                            <div className="text-white/50 text-xs">Sin Escudo</div>
+                        )}
+                    </div>
+                    {/* Recuadro Resultado - h-44 */}
+                    <div className="h-44 bg-white flex items-center justify-center border-r border-gray-300 relative z-20">
+                        <span className="text-[10rem] font-orbitron font-bold text-[#021024] leading-none">
+                            {data.resScore1}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Equipo 2 */}
+                <div className="flex flex-col w-56">
+                    {/* Cuadro Escudo */}
+                    <div 
+                        className="h-32 flex items-center justify-center relative"
+                        style={{ background: `linear-gradient(to bottom, ${data.resColor2}CC, ${data.resColor2}33)` }}
+                    >
+                        {data.resTeam2Logo ? (
+                            <CorsImg src={data.resTeam2Logo} alt="Equipo 2" className="w-24 h-24 object-contain drop-shadow-2xl z-10" />
+                        ) : (
+                            <div className="text-white/50 text-xs">Sin Escudo</div>
+                        )}
+                    </div>
+                    {/* Recuadro Resultado */}
+                    <div className="h-44 bg-white flex items-center justify-center relative z-20">
+                        <span className="text-[10rem] font-orbitron font-bold text-[#021024] leading-none">
+                            {data.resScore2}
+                        </span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+  );
+
+  const renderActiveTemplate = () => {
+    switch (activeTemplate) {
+      case TEMPLATES.ESTADISTICAS: return renderEstadisticas();
+      case TEMPLATES.CONVOCADOS: return renderConvocados();
+      case TEMPLATES.NOTICIA_ESPECIAL: return renderNoticiaEspecial();
+      case TEMPLATES.NOTICIA_COMUN: return renderNoticiaComun();
+      case TEMPLATES.FORMACION: return renderFormacion();
+      case TEMPLATES.RESULTADO: return renderResultado();
+      default: return null;
+    }
+  };
+
+  const handleInputChange = (key, val) => setData(prev => ({ ...prev, [key]: val }));
+  const handleStatChange = (idx, key, val) => {
+    const newStats = [...data.statsList];
+    newStats[idx][key] = val;
+    setData(prev => ({ ...prev, statsList: newStats }));
+  };
+  const addStat = () => setData(prev => ({ ...prev, statsList: [...prev.statsList, { value: '0', label: 'DATO' }] }));
+  const removeStat = (idx) => setData(prev => ({ ...prev, statsList: prev.statsList.filter((_, i) => i !== idx) }));
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white font-sans flex flex-col md:flex-row overflow-hidden" 
+         onMouseMove={onMouseMove} onMouseUp={() => setDragStart(null)} onMouseLeave={() => setDragStart(null)}
+         onTouchMove={onTouchMove} onTouchEnd={() => setDragStart(null)}>
+      
+      {!isPreviewMode && (
+        <div className="w-full md:w-[450px] bg-slate-800 border-r border-slate-700 flex flex-col h-screen z-20 shadow-xl">
+            <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                <h1 className="text-xl font-bold text-blue-400 flex items-center gap-2"><Layout size={20}/> EDITOR</h1>
+            </div>
+
+            <div className="p-2 grid grid-cols-3 gap-1 border-b border-slate-700">
+                {Object.entries(TEMPLATES).map(([key, val]) => (
+                    <button key={val} onClick={() => setActiveTemplate(val)}
+                        className={`p-2 rounded text-[10px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                        {key.replace('_', ' ')}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
+                <div className="space-y-2 bg-slate-700/50 p-3 rounded">
+                    <label className="text-xs font-bold text-slate-400 uppercase">Fondo</label>
+                    <div className="flex gap-2">
+                        <label className="flex-1 cursor-pointer bg-blue-600 hover:bg-blue-500 py-2 rounded flex justify-center items-center gap-2 text-xs font-bold">
+                            <Upload size={14} /> SUBIR
+                            <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                        </label>
+                        <button onClick={handleUrlInput} className="flex-1 bg-slate-600 hover:bg-slate-500 py-2 rounded text-xs font-bold"><LinkIcon size={14} className="inline mr-1"/> URL</button>
+                    </div>
+                    
+                    {/* CONTROLES DE IMAGEN MEJORADOS */}
+                    {image && (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                            <button 
+                                onClick={() => setIsAdjustingImage(!isAdjustingImage)}
+                                className={`col-span-2 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 transition-colors ${isAdjustingImage ? 'bg-green-600 text-white animate-pulse' : 'bg-slate-600 text-slate-300'}`}
+                            >
+                                <Move size={14}/> {isAdjustingImage ? 'ARRASTRAR (ACTIVO)' : 'MOVER IMAGEN'}
+                            </button>
+                            
+                            {/* Sliders para Ajuste Fino */}
+                            <div className="col-span-2 bg-slate-800 p-2 rounded flex flex-col gap-2">
+                                <div className="flex items-center gap-2">
+                                    <ZoomIn size={12} className="text-slate-400"/>
+                                    <input 
+                                        type="range" min="0.1" max="3" step="0.05" 
+                                        value={imageScale} onChange={(e) => setImageScale(parseFloat(e.target.value))}
+                                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <ArrowRightLeft size={12} className="text-slate-400"/>
+                                    <input 
+                                        type="range" min="-500" max="500" 
+                                        value={imagePos.x} onChange={(e) => setImagePos({...imagePos, x: parseFloat(e.target.value)})}
+                                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <ArrowUpDown size={12} className="text-slate-400"/>
+                                    <input 
+                                        type="range" min="-500" max="500" 
+                                        value={imagePos.y} onChange={(e) => setImagePos({...imagePos, y: parseFloat(e.target.value)})}
+                                        className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {activeTemplate === TEMPLATES.ESTADISTICAS && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 bg-slate-800 p-2 rounded">
+                            <button onClick={() => handleInputChange('statsShowMain', !data.statsShowMain)}>
+                                {data.statsShowMain ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
+                            </button>
+                            <label className="text-xs text-slate-300">Mostrar Dato Principal</label>
+                        </div>
+                        <div className="flex items-center gap-2 bg-slate-800 p-2 rounded">
+                            <button onClick={() => handleInputChange('statsHighlightFirst', !data.statsHighlightFirst)}>
+                                {data.statsHighlightFirst ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
+                            </button>
+                            <label className="text-xs text-slate-300">Destacar Primer Dato</label>
+                        </div>
+                        <input type="text" value={data.statsTitle} onChange={(e) => handleInputChange('statsTitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm font-bold" placeholder="Título" />
+                        <input type="text" value={data.statsSubtitle} onChange={(e) => handleInputChange('statsSubtitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm" placeholder="Subtítulo" />
+                        {data.statsShowMain && (
+                            <div className="flex gap-2">
+                                <input type="text" value={data.statsBigNumber} onChange={(e) => handleInputChange('statsBigNumber', e.target.value)} className="w-1/3 bg-slate-900 border border-slate-600 p-2 rounded text-center text-xl font-bold" />
+                                <input type="text" value={data.statsBigLabel} onChange={(e) => handleInputChange('statsBigLabel', e.target.value)} className="w-2/3 bg-slate-900 border border-slate-600 p-2 rounded text-sm" />
+                            </div>
+                        )}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-400 flex justify-between">CATEGORÍAS <button onClick={addStat} className="text-green-400"><Plus size={14}/></button></label>
+                            {data.statsList.map((stat, i) => (
+                                <div key={i} className="flex gap-2 items-center">
+                                    <input value={stat.value} onChange={(e) => handleStatChange(i, 'value', e.target.value)} className="w-16 bg-slate-900 p-1 rounded text-center text-sm" />
+                                    <input value={stat.label} onChange={(e) => handleStatChange(i, 'label', e.target.value)} className="flex-1 bg-slate-900 p-1 rounded text-sm" />
+                                    <button onClick={() => removeStat(i)} className="text-red-400 hover:text-red-300"><Trash2 size={14}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {(activeTemplate === TEMPLATES.CONVOCADOS || activeTemplate === TEMPLATES.FORMACION) && (
+                    <div className="space-y-4">
+                        <div className="bg-slate-700/30 p-2 rounded space-y-2">
+                            <input type="text" value={data.matchInfo} onChange={(e) => handleInputChange('matchInfo', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs" placeholder="Fecha, Hora, Estadio" />
+                            {activeTemplate === TEMPLATES.CONVOCADOS && (
+                                <input type="text" value={data.rivalName} onChange={(e) => handleInputChange('rivalName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs" placeholder="Nombre Rival" />
+                            )}
+                            <input type="text" value={data.dtName} onChange={(e) => handleInputChange('dtName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs" placeholder="Nombre DT" />
+                        </div>
+
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-400">SELECCIONAR JUGADORES</label>
+                                <span className="text-[10px] text-slate-500">{roster.filter(p=>p.selected).length} Seleccionados</span>
+                            </div>
+                            <div className="h-60 overflow-y-auto bg-slate-900 rounded p-2 custom-scrollbar">
+                                {roster.map((p, i) => (
+                                    <div key={i} className="flex items-center gap-2 mb-1 hover:bg-slate-800 p-1 rounded">
+                                        <button onClick={() => togglePlayer(i, activeTemplate === TEMPLATES.FORMACION)}>
+                                            {p.selected ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} className="text-slate-600" />}
+                                        </button>
+                                        <input type="text" value={p.number} onChange={(e) => updatePlayerNumber(i, e.target.value)} className="w-8 bg-black text-center text-xs p-1 rounded text-blue-300" />
+                                        <div className="flex-1">
+                                            <p className="text-xs font-bold text-white leading-none">{p.name}</p>
+                                            <p className="text-[10px] text-slate-500 leading-none">{p.pos}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {activeTemplate === TEMPLATES.FORMACION && (
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 mb-2 block">ORDENAR FORMACIÓN (Arrastrar)</label>
+                                <div className="space-y-1 bg-slate-900 p-2 rounded">
+                                    {data.formationList.map((p, i) => (
+                                        <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, i)}
+                                            className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-move hover:bg-slate-700 transition-colors"
+                                        >
+                                            <GripVertical size={14} className="text-slate-500"/>
+                                            <span className="text-xs font-bold text-blue-400 w-6">{p.number}</span>
+                                            <span className="text-xs text-white">{p.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTemplate === TEMPLATES.NOTICIA_ESPECIAL && (
+                    <div className="space-y-4">
+                        <input type="text" value={data.specialTitle} onChange={(e) => handleInputChange('specialTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="TÍTULO GRANDE" />
+                        <textarea value={data.specialBody} onChange={(e) => handleInputChange('specialBody', e.target.value)} className="w-full h-64 bg-slate-900 p-2 rounded text-xs" placeholder="Escribe la noticia aquí..." />
+                    </div>
+                )}
+
+                {activeTemplate === TEMPLATES.NOTICIA_COMUN && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <button onClick={() => handleInputChange('newsShowTag', !data.newsShowTag)}>
+                                {data.newsShowTag ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
+                            </button>
+                            <label className="text-xs text-slate-300">Mostrar Etiqueta</label>
+                        </div>
+                        {data.newsShowTag && (
+                            <div className="flex gap-2">
+                                <input type="text" value={data.newsTag} onChange={(e) => handleInputChange('newsTag', e.target.value)} className="flex-1 bg-slate-900 p-2 rounded text-sm text-center" placeholder="ETIQUETA" />
+                                <input type="color" value={data.newsTagColor} onChange={(e) => handleInputChange('newsTagColor', e.target.value)} className="w-10 h-full rounded cursor-pointer border-none bg-transparent" />
+                            </div>
+                        )}
+                        <input type="text" value={data.newsTitle} onChange={(e) => handleInputChange('newsTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold text-blue-300" placeholder="TITULAR" />
+                        <textarea value={data.newsSubtitle} onChange={(e) => handleInputChange('newsSubtitle', e.target.value)} className="w-full h-32 bg-slate-900 p-2 rounded text-sm" placeholder="Bajada de la noticia..." />
+                    </div>
+                )}
+
+                {activeTemplate === TEMPLATES.RESULTADO && (
+                    <div className="space-y-6">
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-400 flex items-center gap-2"><Trophy size={12}/> Torneo</label>
+                            <select 
+                                className="w-full bg-slate-900 p-2 rounded text-xs"
+                                onChange={(e) => handleSelectImage('resTournamentLogo', e.target.value)}
+                            >
+                                <option value="">Seleccionar Torneo</option>
+                                {LEAGUES_DB.map((l, i) => <option key={i} value={l.url}>{l.name}</option>)}
+                            </select>
+                            <label className="cursor-pointer bg-slate-700 hover:bg-slate-600 p-1 rounded flex justify-center items-center text-[10px] mt-1">
+                                O Subir Logo
+                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleSpecificImageUpload('resTournamentLogo', e)} />
+                            </label>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-700/30 p-2 rounded space-y-2">
+                                <label className="text-xs font-bold text-blue-300">EQUIPO 1</label>
+                                <select 
+                                    className="w-full bg-slate-900 p-1 rounded text-[10px]"
+                                    onChange={(e) => handleSelectImage('resTeam1Logo', e.target.value)}
+                                >
+                                    <option value="">Seleccionar Equipo</option>
+                                    {TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
+                                </select>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px]">Color:</span>
+                                    <input type="color" value={data.resColor1} onChange={(e) => handleInputChange('resColor1', e.target.value)} className="w-6 h-6 rounded cursor-pointer bg-transparent border-none" />
+                                </div>
+                                <input type="number" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-center text-lg font-bold" />
+                            </div>
+
+                            <div className="bg-slate-700/30 p-2 rounded space-y-2">
+                                <label className="text-xs font-bold text-red-300">EQUIPO 2</label>
+                                <select 
+                                    className="w-full bg-slate-900 p-1 rounded text-[10px]"
+                                    onChange={(e) => handleSelectImage('resTeam2Logo', e.target.value)}
+                                >
+                                    <option value="">Seleccionar Equipo</option>
+                                    {TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
+                                </select>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px]">Color:</span>
+                                    <input type="color" value={data.resColor2} onChange={(e) => handleInputChange('resColor2', e.target.value)} className="w-6 h-6 rounded cursor-pointer bg-transparent border-none" />
+                                </div>
+                                <input type="number" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-center text-lg font-bold" />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+      )}
+
+      {/* ÁREA DE PREVIEW / CAPTURA */}
+      <div 
+        className={`flex-1 bg-black flex items-center justify-center p-4 relative overflow-hidden transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50' : ''}`} 
+        onPaste={handlePaste} 
+        tabIndex="0"
+        ref={containerRef}
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        style={{ cursor: isAdjustingImage ? 'move' : 'default' }}
+      >
+         {!isPreviewMode && <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black opacity-50 pointer-events-none"></div>}
+         
+         <div className="absolute top-4 right-4 z-50 flex gap-2">
+             <button 
+                onClick={() => setIsPreviewMode(!isPreviewMode)} 
+                className="bg-black/50 hover:bg-blue-600 text-white p-3 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/20"
+                title={isPreviewMode ? "Salir de Modo Captura" : "Modo Captura / Pantalla Completa"}
+             >
+                {isPreviewMode ? <Minimize2 size={24} /> : <Eye size={24} />}
+             </button>
+         </div>
+
+         {/* CANVAS RENDERIZADO */}
+         <div 
+            style={{ 
+                transform: isPreviewMode 
+                    ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.95})` 
+                    : `scale(${previewScale})`, 
+                transformOrigin: 'center',
+                transition: isAdjustingImage ? 'none' : 'transform 0.3s ease'
+            }} 
+            className="shadow-2xl"
+         >
+            <div 
+                ref={canvasRef} 
+                style={{ width: '1080px', height: '1350px', backgroundColor: THEME.bg }} 
+                className="overflow-hidden shadow-2xl relative"
+            >
+                <style>{`
+                    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@700;900&display=swap');
+                    .font-bebas { font-family: 'Bebas Neue', sans-serif; }
+                    .font-orbitron { font-family: 'Orbitron', sans-serif; }
+                `}</style>
+                {renderActiveTemplate()}
+            </div>
+         </div>
+
+         {!isPreviewMode && (
+             <button onClick={handleDownload} disabled={loading} className="absolute bottom-6 right-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 z-30 transition-transform hover:scale-105 active:scale-95">
+                {loading ? 'Procesando...' : <><Download size={20} /> DESCARGAR HD</>}
+             </button>
+         )}
+         
+         {isPreviewMode && (
+             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-50">
+                 <button 
+                    onClick={handleDownload} 
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-full font-bold shadow-2xl flex items-center gap-3 transition-transform hover:scale-105 active:scale-95 border-2 border-white/20"
+                 >
+                    {loading ? 'Generando...' : <><Save size={24} /> GUARDAR IMAGEN</>}
+                 </button>
+             </div>
+         )}
+      </div>
+    </div>
+  );
+};
+
+export default App;
