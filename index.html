@@ -533,15 +533,18 @@
                 const count = data.statsList.length;
                 const totalItems = data.statsShowMain ? count + 1 : count;
                 
-                let dynamicSizeClass = 'text-[9rem]'; 
-                let gapClass = 'gap-8';
+                let dynamicSizeClass = 'text-[11rem]'; 
+                let labelSizeClass = 'text-4xl';
+                let gapClass = 'gap-6';
 
                 if (totalItems >= 7) {
-                    dynamicSizeClass = 'text-7xl';
+                    dynamicSizeClass = 'text-[6rem]';
+                    labelSizeClass = 'text-2xl';
                     gapClass = 'gap-2';
                 } else if (totalItems >= 5) {
-                    dynamicSizeClass = 'text-8xl';
-                    gapClass = 'gap-4';
+                    dynamicSizeClass = 'text-[8.5rem]';
+                    labelSizeClass = 'text-3xl';
+                    gapClass = 'gap-3';
                 }
 
                 return (
@@ -560,16 +563,16 @@
                         </div>
                         
                         <div className="flex-grow flex flex-row items-stretch justify-end w-full overflow-hidden my-4 relative">
-                            <div className="w-1.5 h-full rounded-full shadow-lg mr-12" style={{ backgroundColor: THEME.accent }}></div>
-                            <div className={`flex flex-col items-end justify-center ${gapClass} h-full`}>
+                            <div className="w-1.5 h-full rounded-full shadow-lg mr-6" style={{ backgroundColor: THEME.accent }}></div>
+                            <div className={`flex flex-col items-center justify-center min-w-[320px] ${gapClass} h-full`}>
                                 
                                 {data.statsShowMain && (
                                     <React.Fragment>
-                                        <div className="text-right flex flex-col justify-center py-4">
-                                            <span className={`block font-bebas leading-[0.85] text-white drop-shadow-2xl scale-y-110 ${data.statsHighlightFirst ? 'text-[13rem]' : dynamicSizeClass}`} style={{ color: data.statsHighlightFirst ? THEME.accent : 'white' }}>
+                                        <div className="text-center flex flex-col items-center justify-center py-2 w-full">
+                                            <span className={`block font-bebas leading-[0.8] text-white drop-shadow-2xl scale-y-110 ${data.statsHighlightFirst ? 'text-[14rem]' : dynamicSizeClass}`} style={{ color: data.statsHighlightFirst ? THEME.accent : 'white' }}>
                                                 {data.statsBigNumber}
                                             </span>
-                                            <span className="text-3xl font-bold tracking-widest text-white uppercase block mt-1 drop-shadow-md">
+                                            <span className={`${data.statsHighlightFirst ? 'text-4xl' : labelSizeClass} font-bold tracking-widest text-white uppercase block mt-2 drop-shadow-md`}>
                                                 {data.statsBigLabel}
                                             </span>
                                         </div>
@@ -581,11 +584,11 @@
 
                                 {data.statsList.map((stat, idx) => (
                                     <React.Fragment key={idx}>
-                                        <div className="text-right flex flex-col justify-center py-4">
-                                            <span className={`block font-bebas leading-[0.9] ${dynamicSizeClass} drop-shadow-lg`} style={{ color: 'white' }}>
+                                        <div className="text-center flex flex-col items-center justify-center py-2 w-full">
+                                            <span className={`block font-bebas leading-[0.85] ${dynamicSizeClass} drop-shadow-lg`} style={{ color: 'white' }}>
                                                 {stat.value}
                                             </span>
-                                            <span className="text-2xl font-bold tracking-widest uppercase drop-shadow-md" style={{ color: THEME.accent }}>
+                                            <span className={`${labelSizeClass} font-bold tracking-widest uppercase drop-shadow-md mt-1`} style={{ color: THEME.accent }}>
                                                 {stat.label}
                                             </span>
                                         </div>
