@@ -619,12 +619,21 @@
                 let numberSizeClass = "text-4xl";
                 let gapClass = "gap-3";
 
-                if (maxPlayersPerCol > 12) {
-                    textSizeClass = "text-[2.5rem]";
+                if (maxPlayersPerCol > 14) {
+                    textSizeClass = "text-3xl";
+                    numberSizeClass = "text-2xl";
+                    gapClass = "gap-0"; 
+                } else if (maxPlayersPerCol > 12) { // 25 a 28 jugadores
+                    textSizeClass = "text-4xl";
                     numberSizeClass = "text-3xl";
                     gapClass = "gap-1"; 
-                } else if (maxPlayersPerCol > 10) {
-                    textSizeClass = "text-[3rem]"; 
+                } else if (maxPlayersPerCol > 10) { // 21 a 24 jugadores (Aquí estaba el salto brusco)
+                    textSizeClass = "text-[2.5rem]"; 
+                    numberSizeClass = "text-3xl";
+                    gapClass = "gap-2";
+                } else if (maxPlayersPerCol > 8) { // 17 a 20 jugadores
+                    textSizeClass = "text-[2.75rem]"; 
+                    numberSizeClass = "text-[2.25rem]";
                     gapClass = "gap-2";
                 }
 
