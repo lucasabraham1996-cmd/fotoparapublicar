@@ -177,10 +177,12 @@
         const getStatsTitleSizeClass = (title) => {
             if (!title) return 'text-[6.5rem]';
             const len = title.length;
-            if (len < 8) return 'text-[6.5rem]';
-            if (len < 11) return 'text-[5.5rem]';
-            if (len < 14) return 'text-[4.5rem]';
-            return 'text-[3.5rem]';
+            if (len <= 7) return 'text-[7.5rem]';
+            if (len <= 9) return 'text-[6.5rem]';
+            if (len <= 11) return 'text-[5.5rem]';
+            if (len <= 14) return 'text-[4.5rem]';
+            if (len <= 18) return 'text-[3.5rem]';
+            return 'text-[2.5rem]';
         };
 
         // --- DATOS GLOBALES ---
@@ -311,6 +313,7 @@
             const [imagePos, setImagePos] = useState({ x: 0, y: 0 });
             const [imageScale, setImageScale] = useState(1);
             const [imageFilter, setImageFilter] = useState('');
+            const [imageFit, setImageFit] = useState('cover'); // Permite ajustar o rellenar la imagen
 
             const [data, setData] = useState({
                 useBold: true, 
@@ -360,8 +363,16 @@
                 logoBase64: null,
                 
                 hjLogosPosX: 'right', 
-                hjLogosPosY: 'top', 
-                hjOverlayUrl: '' 
+                hjLogosPosY: 'bottom', 
+                hjOverlayUrl: '',
+                hjOverlayBlendMode: 'screen',
+                
+                hjTextLine1: 'HOY JUEGA',
+                hjTextColor1: '#FFFFFF',
+                hjTextHollow1: true,
+                hjTextLine2: 'TALLERES',
+                hjTextColor2: '#FFFFFF',
+                hjTextBlendMode: 'normal'
             });
 
             const fontWeightClass = data.useBold ? 'force-bold' : 'font-normal';
@@ -430,7 +441,6 @@
                 if (forFormation) {
                     const player = newRoster[index];
                     if (player.selected) {
-                        // Límite estricto a 11
                         if (data.formationList.length < 11) {
                             setData(prev => ({...prev, formationList: [...prev.formationList, player]}));
                         } else {
@@ -520,7 +530,8 @@
             };
 
             const handleGlobalPaste = (e) => {
-                const items = e.clipboardData.items;
+                const items = e.clipboardData?.items;
+                if (!items) return;
                 for (let i = 0; i < items.length; i++) {
                     if (items[i].type.indexOf('image') !== -1) {
                         const blob = items[i].getAsFile();
@@ -647,7 +658,7 @@
                             alt="Background" 
                             className="transition-transform duration-100"
                             style={{ 
-                                minWidth: '100%', minHeight: '100%', objectFit: 'cover',
+                                width: '100%', height: '100%', objectFit: imageFit, 
                                 transform: `translate(${imagePos.x}px, ${imagePos.y}px) scale(${imageScale})`,
                                 filter: imageFilter 
                             }}
@@ -656,12 +667,12 @@
                     {data.blueOverlay ? (
                         <div className="absolute inset-0 bg-gradient-to-br from-[#021024]/90 via-[#0f3577]/70 to-[#1e40af]/60 mix-blend-multiply" />
                     ) : (
-                        <div className="absolute inset-0 bg-[#021024]/10 mix-blend-multiply" /> 
+                        <div className="absolute inset-0 bg-[#021024]/40 mix-blend-multiply" /> 
                     )}
                     
-                    {/* OVERLAY EXTRA - MÁS NOTORIOS (Opacidad Alta para las tramas) */}
+                    {/* OVERLAY EXTRA - Opacidad Alta */}
                     {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && data.hjOverlayUrl && (
-                        <div className="absolute inset-0 z-10 opacity-70 mix-blend-screen pointer-events-none">
+                        <div className="absolute inset-0 z-10 opacity-90 pointer-events-none" style={{ mixBlendMode: data.hjOverlayBlendMode }}>
                             <CorsImg src={data.hjOverlayUrl} className="w-full h-full object-cover" />
                         </div>
                     )}
@@ -679,7 +690,7 @@
                 let dynamicSizeClass = 'text-[12rem]'; 
                 let labelSizeClass = 'text-3xl';
                 let gapClass = 'gap-6';
-                let mainNumberSizeClass = 'text-[13rem]';
+                let mainNumberSizeClass = 'text-[14rem]';
                 let mainLabelSizeClass = 'text-3xl';
                 let pyClass = 'py-2';
 
@@ -717,23 +728,29 @@
 
                 let alignClass = 'items-end pr-24 pl-12';
                 let textColClass = 'w-[50%]';
-                let textColAlign = 'items-end text-center';
+                let textColAlign = 'items-end text-right';
                 let dataWrapperAlign = 'justify-end w-[50%]';
                 let linePlacement = 'right-full mr-8'; 
                 let gradientClass = 'bg-gradient-to-r from-transparent via-[#021024]/50 to-[#021024] via-40%';
+                
+                // Lógica de dirección del contenedor para evitar el corte del texto
+                let titleAlignContainer = 'rtl';
 
                 if (data.statsAlign === 'left') {
                     alignClass = 'items-start pl-24 pr-12';
-                    textColAlign = 'items-start text-center';
+                    textColClass = 'w-[50%]';
+                    textColAlign = 'items-start text-left';
                     dataWrapperAlign = 'justify-start w-[50%]';
                     linePlacement = 'left-full ml-8'; 
                     gradientClass = 'bg-gradient-to-l from-transparent via-[#021024]/50 to-[#021024] via-40%';
+                    titleAlignContainer = 'ltr';
                 } else if (data.statsAlign === 'center') {
                     alignClass = 'items-center px-12';
                     textColClass = 'w-[80%]';
                     textColAlign = 'items-center text-center';
                     dataWrapperAlign = 'justify-center w-[80%]';
                     gradientClass = 'bg-gradient-to-t from-[#021024] via-[#021024]/60 to-transparent';
+                    titleAlignContainer = 'ltr';
                 }
 
                 return (
@@ -743,17 +760,18 @@
                     
                     <div className={`relative z-10 w-full h-full flex flex-col ${alignClass} pt-20 pb-16`}>
                         <div className={`flex flex-col ${textColClass} mb-10 ${textColAlign} overflow-visible`}>
-                            {/* TÍTULO EN UNA SOLA LÍNEA SIN CORTARSE */}
-                            <div className="w-full flex justify-center">
-                                <h1 className={`${getStatsTitleSizeClass(data.statsTitle)} font-azonix tracking-wider leading-[1.1] drop-shadow-lg text-center whitespace-nowrap overflow-visible ${fontWeightClass}`} style={{ color: THEME.accent }}>
+                            {/* TÍTULO ANTI-CORTE */}
+                            <div className={`w-full overflow-visible ${data.statsAlign === 'center' ? 'text-center' : ''}`} style={{ direction: titleAlignContainer }}>
+                                <h1 className={`${getStatsTitleSizeClass(data.statsTitle)} font-azonix tracking-wider leading-[1.1] drop-shadow-lg whitespace-nowrap inline-block ${fontWeightClass}`} style={{ color: THEME.accent, direction: 'ltr' }}>
                                     {data.statsTitle}
                                 </h1>
                             </div>
-                            <h2 className={`text-4xl font-azonix text-white tracking-widest mt-4 uppercase drop-shadow-md text-center w-full`}>
+                            
+                            <h2 className={`text-4xl font-azonix text-white tracking-widest mt-4 uppercase drop-shadow-md w-full`}>
                                 {data.statsSubtitle}
                             </h2>
                             {data.statsAlign === 'center' && (
-                                <div className="w-[40%] h-1.5 rounded-full mt-6 shadow-lg" style={{ backgroundColor: THEME.accent }}></div>
+                                <div className="w-[40%] h-1.5 rounded-full mt-6 shadow-lg mx-auto" style={{ backgroundColor: THEME.accent }}></div>
                             )}
                         </div>
                         
@@ -814,7 +832,7 @@
                 const maxPlayersPerCol = Math.max(col1.length, col2.length);
                 
                 let textSizeClass = "text-4xl"; 
-                let numberSizeClass = "text-[3.5rem]";
+                let numberSizeClass = "text-[4.5rem]";
                 let gapClass = "gap-4";
 
                 if (maxPlayersPerCol > 16) {
@@ -1004,44 +1022,40 @@
                 </div>
             )};
 
-            // 6. HOY JUEGA (Diseño Exacto Referencia)
+            // 6. HOY JUEGA
             const renderHoyJuega = () => {
                 const isLeft = data.hjLogosPosX === 'left';
                 const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
                 
-                // Escudos tapados solo 1rem por la cinta
+                // Escudos tapados parcialmente por la cinta
                 const logosXClass = isLeft ? 'left-[1rem]' : 'right-[1rem]';
-                
-                // Si esta bottom/top, quitamos el translate-y para que quede fijo al borde elegido
-                let logosYClass = data.hjLogosPosY === 'top' ? 'top-12' : data.hjLogosPosY === 'bottom' ? 'bottom-12' : 'top-1/2 -translate-y-1/2';
+                const logosYClass = 'bottom-[4rem]'; // Siempre abajo
 
-                // Acomodar info inferior a la contra en Y / X
-                const isTop = data.hjLogosPosY === 'top';
-                const infoYClass = isTop ? 'bottom-12' : 'top-12'; 
+                // Logo de Torneo siempre a la contra
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
+                const infoYClass = 'bottom-12'; 
 
-                // Padding para centrar logo en la parte visible
                 const boxPaddingClass = isLeft ? 'pl-[4.5rem] pr-2' : 'pr-[4.5rem] pl-2';
 
                 return (
-                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden">
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
                         <BackgroundImage />
                         
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/60 via-transparent to-[#021024]/60 pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/80 via-transparent to-[#021024]/80 pointer-events-none z-0" />
 
                         {/* Top Center Logo */}
                         <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20">
                             <LogoComponent />
                         </div>
 
-                        {/* Tournament Info (A la contra) - SOLO COMPETENCIA Y PEQUEÑO */}
-                        <div className={`absolute ${infoYClass} ${infoXClass} z-20 flex items-center`}>
-                            <div className="w-28 h-28 flex items-center justify-center p-1 drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
+                        {/* Tournament Logo (A la contra) - Z-INDEX MAXIMO, MÁS PEQUEÑO */}
+                        <div className={`absolute ${infoYClass} ${infoXClass} z-50 flex items-center`}>
+                            <div className="w-24 h-24 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
                                 {data.resTournamentLogo && <CorsImg src={data.resTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" />}
                             </div>
                         </div>
 
-                        {/* Cajas de Logos - z-20 (POR DETRÁS DE LA FRANJA) */}
+                        {/* Cajas de Logos - z-20 */}
                         <div className={`absolute ${logosXClass} ${logosYClass} flex flex-col z-20 drop-shadow-[0_15px_25px_rgba(0,0,0,0.8)]`}>
                             <div className={`w-[16rem] h-52 flex items-center justify-center py-6 ${boxPaddingClass} relative overflow-hidden`} style={{ background: `linear-gradient(to bottom right, ${data.resColor1A}, ${data.resColor1B}, ${data.resColor1C})` }}>
                                 {data.resTeam1Logo && <CorsImg src={data.resTeam1Logo} className="w-full h-full object-contain drop-shadow-xl filter brightness-0 invert relative z-10" />}
@@ -1051,45 +1065,51 @@
                             </div>
                         </div>
 
-                        {/* Franja vertical derecha con texto - z-40 (SIEMPRE POR DELANTE) */}
+                        {/* Franja vertical derecha con texto - z-40 */}
                         <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
                             <div className={`whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase`}>
                                 HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA
                             </div>
                         </div>
 
-                        {/* Texto Central Fijo (HOY JUEGA TALLERES) - Completamente centrado en toda la foto */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-10 pointer-events-none w-full">
-                            <h1 className="text-[5.5rem] font-azonix tracking-wider leading-[0.95] text-hollow drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)] text-center">
-                                HOY JUEGA
+                        {/* Texto Central Fijo (HOY JUEGA TALLERES) */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-10 pointer-events-none w-full"
+                             style={{ mixBlendMode: data.hjTextBlendMode }}>
+                            <h1 
+                                className={`text-[5.5rem] font-azonix tracking-wider leading-[0.95] drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)] text-center w-full break-words px-[6rem] ${data.hjTextHollow1 ? 'text-transparent' : ''}`}
+                                style={{ 
+                                    WebkitTextStroke: data.hjTextHollow1 ? `3px ${data.hjTextColor1}` : 'none',
+                                    color: data.hjTextHollow1 ? 'transparent' : data.hjTextColor1 
+                                }}
+                            >
+                                {data.hjTextLine1}
                             </h1>
-                            <h2 className="text-[6.5rem] font-azonix text-white tracking-widest leading-[0.85] uppercase mt-2 drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] text-center"
-                                style={{ textShadow: '0 15px 30px rgba(0,0,0,0.9)' }}>
-                                TALLERES
+                            <h2 
+                                className="text-[6.5rem] font-azonix tracking-widest leading-[0.85] uppercase mt-2 drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] text-center w-full break-words px-[6rem]"
+                                style={{ color: data.hjTextColor2, textShadow: '0 15px 30px rgba(0,0,0,0.9)' }}
+                            >
+                                {data.hjTextLine2}
                             </h2>
                         </div>
                     </div>
                 );
             };
 
-            // 7. RESULTADO FINAL (NUEVA PLANTILLA)
+            // 7. RESULTADO FINAL
             const renderResultadoFINAL = () => {
                 const isLeft = data.hjLogosPosX === 'left';
                 const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
                 
-                // Result box comes out of the ribbon
                 const blockXClass = isLeft ? 'left-[4.5rem]' : 'right-[4.5rem]';
-                let blockYClass = data.hjLogosPosY === 'top' ? 'top-12' : data.hjLogosPosY === 'bottom' ? 'bottom-12' : 'top-1/2 -translate-y-1/2';
+                const blockYClass = 'bottom-[4rem]'; 
 
-                // Logo Torneo a la contra en X e Y
-                const isTop = data.hjLogosPosY === 'top';
-                const infoYClass = isTop ? 'bottom-12' : 'top-12'; 
+                const infoYClass = 'bottom-12'; 
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
 
                 return (
-                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden">
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
                         <BackgroundImage />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/80 via-transparent to-[#021024]/80 pointer-events-none z-0" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/90 via-transparent to-[#021024]/90 pointer-events-none z-0" />
 
                         {/* Ribbon MISMO LADO */}
                         <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
@@ -1127,8 +1147,8 @@
                         </div>
 
                         {/* Opposite Tournament Logo (SIN TEXTO Y A LA CONTRA) */}
-                        <div className={`absolute ${infoYClass} ${infoXClass} z-20 flex items-center`}>
-                            <div className="w-28 h-28 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
+                        <div className={`absolute ${infoYClass} ${infoXClass} z-50 flex items-center`}>
+                            <div className="w-24 h-24 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
                                 {data.resTournamentLogo && <CorsImg src={data.resTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" />}
                             </div>
                         </div>
@@ -1209,6 +1229,13 @@
                                             <button onClick={() => setImageFilter('brightness(0.5)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'brightness(0.5)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Oscuro</button>
                                             <button onClick={() => setImageFilter('contrast(1.5) saturate(1.2)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter.includes('contrast') ? 'bg-blue-600' : 'bg-slate-700'}`}>Vivo</button>
                                         </div>
+                                        
+                                        <div className="flex items-center gap-4 mt-3">
+                                            <span className="text-[10px] font-bold text-slate-400 w-16">AJUSTE</span>
+                                            <button onClick={() => handleInputChange('imageFit', data.imageFit === 'cover' ? 'contain' : 'cover')} className="bg-slate-700 p-1 text-[10px] rounded flex-1 font-bold">
+                                                {data.imageFit === 'cover' ? 'RELLENAR (AUTO-RECORTE)' : 'VER COMPLETA (SIN RECORTE)'}
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
@@ -1221,6 +1248,15 @@
                                             <button onClick={() => handleInputChange('hjOverlayUrl', 'https://i.postimg.cc/X7dTHy53/Fondo-Copa-Argentina.png')} className={`flex-1 p-1 text-[10px] rounded font-bold ${data.hjOverlayUrl.includes('Copa-Argentina') ? 'bg-blue-600' : 'bg-slate-700'}`}>COPA ARG</button>
                                             <button onClick={() => handleInputChange('hjOverlayUrl', 'https://i.postimg.cc/bY75tHv7/Fondo-LPF.png')} className={`flex-1 p-1 text-[10px] rounded font-bold ${data.hjOverlayUrl.includes('LPF') ? 'bg-blue-600' : 'bg-slate-700'}`}>LPF</button>
                                         </div>
+                                        <select value={data.hjOverlayBlendMode} onChange={(e) => handleInputChange('hjOverlayBlendMode', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px] mt-1 text-center">
+                                            <option value="normal">Fusión: Normal</option>
+                                            <option value="screen">Fusión: Trama (Screen)</option>
+                                            <option value="overlay">Fusión: Superponer (Overlay)</option>
+                                            <option value="soft-light">Fusión: Luz Suave</option>
+                                            <option value="multiply">Fusión: Multiplicar</option>
+                                            <option value="lighten">Fusión: Aclarar (Lighten)</option>
+                                            <option value="color-dodge">Fusión: Sobreexponer (Color Dodge)</option>
+                                        </select>
                                     </div>
                                 )}
                                 
@@ -1308,7 +1344,7 @@
                                     <input type="text" value={data.statsSubtitle} onChange={(e) => handleInputChange('statsSubtitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm" placeholder="Subtítulo" />
                                     {data.statsShowMain && (
                                         <div className="flex gap-2">
-                                            <input type="text" value={data.statsBigNumber} onChange={(e) => handleInputChange('statsBigNumber', e.target.value)} className="w-1/3 bg-slate-900 border border-slate-600 p-2 rounded text-center text-xl font-bold" />
+                                            <input type="text" value={data.statsBigNumber} onChange={(e) => handleInputChange('statsBigNumber', e.target.value)} className="w-1/3 bg-slate-900 border border-slate-600 p-2 rounded text-center text-xl font-bold font-talleres" />
                                             <input type="text" value={data.statsBigLabel} onChange={(e) => handleInputChange('statsBigLabel', e.target.value)} className="w-2/3 bg-slate-900 border border-slate-600 p-2 rounded text-sm" />
                                         </div>
                                     )}
@@ -1316,7 +1352,7 @@
                                         <label className="text-xs font-bold text-slate-400 flex justify-between">CATEGORÍAS <button onClick={addStat} className="text-green-400"><Plus size={14}/></button></label>
                                         {data.statsList.map((stat, i) => (
                                             <div key={i} className="flex gap-2 items-center">
-                                                <input value={stat.value} onChange={(e) => handleStatChange(i, 'value', e.target.value)} className="w-16 bg-slate-900 p-1 rounded text-center text-sm" />
+                                                <input value={stat.value} onChange={(e) => handleStatChange(i, 'value', e.target.value)} className="w-16 bg-slate-900 p-1 rounded text-center text-sm font-talleres" />
                                                 <input value={stat.label} onChange={(e) => handleStatChange(i, 'label', e.target.value)} className="flex-1 bg-slate-900 p-1 rounded text-sm" />
                                                 <button onClick={() => removeStat(i)} className="text-red-400 hover:text-red-300"><Trash2 size={14}/></button>
                                             </div>
@@ -1352,7 +1388,7 @@
                                                     <button onClick={() => togglePlayer(i, activeTemplate === TEMPLATES.FORMACION)}>
                                                         {p.selected ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} className="text-slate-600" />}
                                                     </button>
-                                                    <input type="text" value={p.number} onChange={(e) => updatePlayerNumber(i, e.target.value)} className="w-8 bg-black text-center text-xs p-1 rounded text-blue-300 border-none" />
+                                                    <input type="text" value={p.number} onChange={(e) => updatePlayerNumber(i, e.target.value)} className="w-8 bg-black text-center text-xs p-1 rounded text-blue-300 border-none font-talleres" />
                                                     <div className="flex-1">
                                                         <p className="text-xs font-bold text-white leading-none">{p.name}</p>
                                                         <p className="text-[10px] text-slate-500 leading-none mt-1">{p.pos}</p>
@@ -1371,7 +1407,7 @@
                                                         className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-move hover:bg-slate-700 transition-colors"
                                                     >
                                                         <GripVertical size={14} className="text-slate-500"/>
-                                                        <span className="text-xs font-bold text-blue-400 w-6">{p.number}</span>
+                                                        <span className="text-xs font-bold text-blue-400 w-6 font-talleres">{p.number}</span>
                                                         <span className="text-xs text-white">{p.name}</span>
                                                     </div>
                                                 ))}
@@ -1409,16 +1445,43 @@
 
                             {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
                                 <div className="space-y-6">
+                                    {/* TEXTOS EDITABLES HOY JUEGA */}
+                                    {activeTemplate === TEMPLATES.HOY_JUEGA && (
+                                        <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600 mb-4">
+                                            <label className="text-[10px] font-bold text-blue-300">TEXTOS (HOY JUEGA)</label>
+                                            
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <input type="text" value={data.hjTextLine1} onChange={(e) => handleInputChange('hjTextLine1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" />
+                                                <input type="color" value={data.hjTextColor1} onChange={(e) => handleInputChange('hjTextColor1', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" />
+                                                <button onClick={() => handleInputChange('hjTextHollow1', !data.hjTextHollow1)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">
+                                                    {data.hjTextHollow1 ? 'HUECO' : 'SÓLIDO'}
+                                                </button>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <input type="text" value={data.hjTextLine2} onChange={(e) => handleInputChange('hjTextLine2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" />
+                                                <input type="color" value={data.hjTextColor2} onChange={(e) => handleInputChange('hjTextColor2', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" />
+                                            </div>
+                                            
+                                            <label className="text-[10px] font-bold text-blue-300 mt-2 block">Fusión del Texto con el Fondo</label>
+                                            <select value={data.hjTextBlendMode} onChange={(e) => handleInputChange('hjTextBlendMode', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">
+                                                <option value="normal">Normal</option>
+                                                <option value="overlay">Superponer (Overlay)</option>
+                                                <option value="soft-light">Luz Suave (Soft Light)</option>
+                                                <option value="multiply">Multiplicar (Multiply)</option>
+                                                <option value="screen">Trama (Screen)</option>
+                                                <option value="lighten">Aclarar (Lighten)</option>
+                                                <option value="color-dodge">Sobreexponer (Color Dodge)</option>
+                                            </select>
+                                        </div>
+                                    )}
+
                                     <div className="bg-slate-700/30 p-2 rounded space-y-2 mb-4 border border-slate-600">
-                                        <label className="text-xs font-bold text-blue-300">Posición de Escudos/Resultado</label>
+                                        <label className="text-xs font-bold text-blue-300">Posición de Escudos/Cinta</label>
                                         <div className="flex gap-2">
-                                            <select value={data.hjLogosPosX} onChange={(e) => handleInputChange('hjLogosPosX', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs text-center font-bold">
+                                            <select value={data.hjLogosPosX} onChange={(e) => handleInputChange('hjLogosPosX', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs text-center font-bold">
                                                 <option value="right">Derecha</option>
                                                 <option value="left">Izquierda</option>
-                                            </select>
-                                            <select value={data.hjLogosPosY} onChange={(e) => handleInputChange('hjLogosPosY', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs text-center font-bold">
-                                                <option value="top">Superior</option>
-                                                <option value="bottom">Inferior</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1435,8 +1498,8 @@
                                         
                                         {activeTemplate === TEMPLATES.RESULTADO_FINAL && (
                                             <div className="flex gap-2 mt-2">
-                                                <input type="text" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold" placeholder="Goles Eq 1" />
-                                                <input type="text" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold" placeholder="Goles Eq 2" />
+                                                <input type="text" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 1" />
+                                                <input type="text" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 2" />
                                             </div>
                                         )}
                                     </div>
@@ -1474,6 +1537,10 @@
                                                 <input type="color" value={data.resColor2B} onChange={(e) => handleInputChange('resColor2B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" />
                                                 <input type="color" value={data.resColor2C} onChange={(e) => handleInputChange('resColor2C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" />
                                             </div>
+
+                                            {activeTemplate !== TEMPLATES.HOY_JUEGA && (
+                                                <input type="text" value={data.resTeam2Name} onChange={(e) => handleInputChange('resTeam2Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -1484,7 +1551,7 @@
 
                   {/* VISOR Y CAPTURA */}
                   <div 
-                    className={`flex-1 flex items-center justify-center relative overflow-hidden transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50 bg-black' : 'bg-slate-950/50 p-4'}`} 
+                    className={`flex-1 flex items-center justify-center relative transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50 bg-black' : 'bg-slate-950/50 p-4'}`} 
                     onPaste={handleGlobalPaste} 
                     tabIndex="0"
                   >
