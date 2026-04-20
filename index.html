@@ -4,25 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Generador de Gráficas Deportivas</title>
-    
-    <!-- Tailwind CSS -->
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel para JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- HTML to Image -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
 
-        /* FUENTES LOCALES */
         @font-face {
             font-family: 'Azonix';
             src: url('./AZONIX.OTF') format('opentype');
@@ -37,33 +29,26 @@
             font-style: normal;
         }
 
-        body { 
-            margin: 0; 
-            font-family: 'Montserrat', sans-serif; 
-            background-color: #0f172a; 
-            overflow-x: hidden; 
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0f172a;
+            overflow-x: hidden;
             overscroll-behavior-y: none;
         }
-        
+
         .font-azonix { font-family: 'Azonix', sans-serif; }
         .font-talleres { font-family: 'Talleres2026', sans-serif; }
-        
         .force-bold { font-weight: 900 !important; }
-
-        .text-hollow {
-            color: transparent;
-            -webkit-text-stroke: 3px rgba(255,255,255,0.9);
-        }
-        
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
-        
-        /* SLIDERS MEJORADOS PARA MÓVIL */
+
         input[type=range] {
-            -webkit-appearance: none; 
-            background: transparent; 
+            -webkit-appearance: none;
+            background: transparent;
         }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -72,7 +57,7 @@
             border-radius: 50%;
             background: #3b82f6;
             cursor: pointer;
-            margin-top: -9px; 
+            margin-top: -9px;
             box-shadow: 0 0 5px rgba(0,0,0,0.5);
         }
         input[type=range]::-webkit-slider-runnable-track {
@@ -82,13 +67,13 @@
             background: #475569;
             border-radius: 4px;
         }
-        
+
         input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
         input[type=color]::-webkit-color-swatch { border: 1px solid #475569; border-radius: 4px; }
-        
+
         input[type="date"]::-webkit-calendar-picker-indicator,
-        input[type="time"]::-webkit-calendar-picker-indicator { 
-            filter: invert(1); cursor: pointer; 
+        input[type="time"]::-webkit-calendar-picker-indicator {
+            filter: invert(1); cursor: pointer;
         }
     </style>
 </head>
@@ -98,7 +83,6 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
-        // --- ICONOS ---
         const Icon = ({ children, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
@@ -123,13 +107,31 @@
         const ClipboardPaste = (p) => <Icon {...p}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></Icon>;
         const PaletteIcon = (p) => <Icon {...p}><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.539 5.555-5.555C21.992 7.28 17.5 2 12 2z"/></Icon>;
 
-        // --- CONVERSOR ROBUSTO DE URLS ---
+        const BLEND_OPTIONS = [
+            { value: 'normal', label: 'Normal' },
+            { value: 'multiply', label: 'Multiplicar' },
+            { value: 'screen', label: 'Trama (Screen)' },
+            { value: 'overlay', label: 'Superponer (Overlay)' },
+            { value: 'soft-light', label: 'Luz Suave' },
+            { value: 'hard-light', label: 'Luz Fuerte' },
+            { value: 'lighten', label: 'Aclarar' },
+            { value: 'darken', label: 'Oscurecer' },
+            { value: 'color-dodge', label: 'Sobreexponer' },
+            { value: 'color-burn', label: 'Subexponer' },
+            { value: 'difference', label: 'Diferencia' },
+            { value: 'exclusion', label: 'Exclusión' },
+            { value: 'luminosity', label: 'Luminosidad' },
+            { value: 'saturation', label: 'Saturación' },
+            { value: 'color', label: 'Color' },
+            { value: 'hue', label: 'Tono' }
+        ];
+
         const convertUrlToBase64 = async (url) => {
             if (!url) return null;
             if (url.startsWith('data:') || url.startsWith('blob:')) return url;
             const fetchImage = async (targetUrl) => {
-                const response = await fetch(targetUrl);
-                if (!response.ok) throw new Error('Error red');
+                const response = await fetch(targetUrl, { mode: 'cors' });
+                if (!response.ok) throw new Error('Error de red');
                 const blob = await response.blob();
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -141,16 +143,56 @@
             try { return await fetchImage(url); } catch (e1) {
                 try { return await fetchImage(`https://corsproxy.io/?${encodeURIComponent(url)}`); } catch (e2) {
                     try { return await fetchImage(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`); } catch (e3) {
-                        return url; 
+                        return url;
                     }
                 }
             }
         };
 
+        const waitForAllImages = async (root) => {
+            const images = Array.from(root.querySelectorAll('img'));
+            await Promise.all(images.map(img => {
+                if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                return new Promise(resolve => {
+                    const done = () => resolve();
+                    img.addEventListener('load', done, { once: true });
+                    img.addEventListener('error', done, { once: true });
+                });
+            }));
+        };
+
+        const dataUrlToBlob = (dataUrl) => {
+            const arr = dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            return new Blob([u8arr], { type: mime });
+        };
+
+        const downloadBlob = (blob, filename) => {
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+        };
+
+        const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
         const CorsImg = ({ src, alt, className, style }) => {
             const [imgSrc, setImgSrc] = useState(src);
             useEffect(() => {
-                setImgSrc(src); 
+                setImgSrc(src);
                 if (!src || src.startsWith('data:') || src.startsWith('blob:')) return;
                 let isActive = true;
                 const convert = async () => {
@@ -161,16 +203,13 @@
                 return () => { isActive = false; };
             }, [src]);
 
-            return <img src={imgSrc} alt={alt} className={className} style={style} crossOrigin="anonymous" />;
+            return <img src={imgSrc} alt={alt} className={className} style={style} crossOrigin="anonymous" draggable="false" />;
         };
 
-        // --- FUNCIONES HELPER ---
         const abbreviateName = (fullName) => {
             if (!fullName) return '';
             const parts = fullName.trim().split(' ');
-            if (parts.length > 1) {
-                return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
-            }
+            if (parts.length > 1) return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
             return fullName;
         };
 
@@ -185,7 +224,6 @@
             return 'text-[2.5rem]';
         };
 
-        // --- DATOS GLOBALES ---
         const TEAMS_DB = [
             { name: 'AAAJ', url: 'https://i.postimg.cc/g2P2Krrm/AAAJ.png' },
             { name: 'Aldosivi', url: 'https://i.postimg.cc/fRhRvkky/Aldosivi.png' },
@@ -235,7 +273,7 @@
             { name: 'Copa Argentina', url: 'https://i.postimg.cc/Bns1nm50/Copa-Argentina.png' },
             { name: 'Copa Córdoba', url: 'https://i.postimg.cc/523QY8pV/Copa-Cordoba.png' },
             { name: 'Femenino', url: 'https://i.postimg.cc/nhZQh3KZ/Femenino.png' },
-            { name: 'Liga Profesional', url: 'https://i.postimg.cc/FsQ44Q07/Liga-2026.png' }, 
+            { name: 'Liga Profesional', url: 'https://i.postimg.cc/FsQ44Q07/Liga-2026.png' },
             { name: 'Torneo Proyección', url: 'https://i.postimg.cc/RZRJ6wGm/Torneo-Proyeccion.png' }
         ];
 
@@ -248,7 +286,7 @@
 
         const TEMPLATES = {
             HOY_JUEGA: 'hoy_juega',
-            RESULTADO_FINAL: 'resultado_final', 
+            RESULTADO_FINAL: 'resultado_final',
             ESTADISTICAS: 'estadisticas',
             CONVOCADOS: 'convocados',
             NOTICIA_COMUN: 'noticia_comun',
@@ -290,48 +328,44 @@
             { name: 'Rick', number: 37, pos: 'Delantero' },
             { name: 'Valentin Davila', number: 49, pos: 'Delantero' },
             { name: 'Ronaldo Martinez', number: 77, pos: 'Delantero' }
-        ].map(p => ({...p, selected: false}));
+        ].map(p => ({ ...p, selected: false }));
 
         const POS_ORDER = { 'Arquero': 1, 'Defensor': 2, 'Mediocampista': 3, 'Delantero': 4 };
 
-        // --- APLICACIÓN PRINCIPAL ---
         const App = () => {
-            const canvasRef = useRef(null); 
-            const containerRef = useRef(null); 
+            const canvasRef = useRef(null);
+            const containerRef = useRef(null);
             const wrapperRef = useRef(null);
-            
+
             const [activeTemplate, setActiveTemplate] = useState(TEMPLATES.HOY_JUEGA);
             const [image, setImage] = useState(null);
             const [loading, setLoading] = useState(false);
             const [roster, setRoster] = useState(INITIAL_ROSTER);
             const [draggedItemIndex, setDraggedItemIndex] = useState(null);
-            
             const [isPreviewMode, setIsPreviewMode] = useState(false);
             const [previewScale, setPreviewScale] = useState(0.45);
-
-            // Estados de imagen mediante Sliders
             const [imagePos, setImagePos] = useState({ x: 0, y: 0 });
             const [imageScale, setImageScale] = useState(1);
             const [imageFilter, setImageFilter] = useState('');
-            const [imageFit, setImageFit] = useState('cover'); // Permite ajustar o rellenar la imagen
+            const [imageFit, setImageFit] = useState('contain');
 
             const [data, setData] = useState({
-                useBold: true, 
-                blueOverlay: false, 
-                
+                useBold: true,
+                blueOverlay: false,
+
                 statsTitle: 'HISTORIAL',
                 statsSubtitle: 'VS PLATENSE',
                 statsShowMain: false,
                 statsBigNumber: '148',
                 statsBigLabel: 'PARTIDOS JUGADOS',
                 statsHighlightFirst: false,
-                statsAlign: 'right', 
+                statsAlign: 'right',
                 statsList: [
                     { value: '62', label: 'VICTORIAS' },
                     { value: '48', label: 'EMPATES' },
                     { value: '38', label: 'DERROTAS' }
                 ],
-                
+
                 matchDate: '',
                 matchTime: '',
                 matchStadium: '',
@@ -346,33 +380,34 @@
                 newsSubtitle: 'Bajada de la noticia con información relevante.',
                 specialTitle: 'EL 11 QUE PARÓ TÉVEZ',
                 specialBody: 'Aquí puedes redactar el texto completo de la noticia.',
-                
+
                 resTeam1Logo: null,
-                resTeam1Name: 'DEFENSA Y JUSTICIA', 
-                resColor1A: '#171a26', resColor1B: '#182a48', resColor1C: '#1d2667', 
-                
+                resTeam1Name: 'DEFENSA Y JUSTICIA',
+                resColor1A: '#171a26', resColor1B: '#182a48', resColor1C: '#1d2667',
+
                 resTeam2Logo: null,
                 resTeam2Name: 'TALLERES',
-                resColor2A: '#171a26', resColor2B: '#182a48', resColor2C: '#1d2667', 
-                
+                resColor2A: '#171a26', resColor2B: '#182a48', resColor2C: '#1d2667',
+
                 resTournamentLogo: null,
                 resMatchStage: 'FECHA 1',
                 resTournamentName: 'LIGA PROFESIONAL',
-                resScore1: '0', 
-                resScore2: '0', 
+                resScore1: '0',
+                resScore2: '0',
                 logoBase64: null,
-                
-                hjLogosPosX: 'right', 
-                hjLogosPosY: 'bottom', 
+
+                hjLogosPosX: 'right',
+                hjLogosPosY: 'bottom',
                 hjOverlayUrl: '',
                 hjOverlayBlendMode: 'screen',
-                
+
                 hjTextLine1: 'HOY JUEGA',
                 hjTextColor1: '#FFFFFF',
                 hjTextHollow1: true,
                 hjTextLine2: 'TALLERES',
                 hjTextColor2: '#FFFFFF',
-                hjTextBlendMode: 'normal'
+                hjTextBlendMode1: 'normal',
+                hjTextBlendMode2: 'overlay'
             });
 
             const fontWeightClass = data.useBold ? 'force-bold' : 'font-normal';
@@ -382,19 +417,17 @@
                     const t1 = TEAMS_DB.find(t => t.name.includes('Talleres'))?.url;
                     const l1 = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || LEAGUES_DB[0].url;
                     const logo = THEME.logo;
-
                     const [b64t1, b64l1, b64Logo] = await Promise.all([
                         convertUrlToBase64(t1),
                         convertUrlToBase64(l1),
                         convertUrlToBase64(logo)
                     ]);
-
                     setData(prev => ({
                         ...prev,
-                        resTeam2Logo: b64t1, 
-                        resTeam1Logo: TEAMS_DB.find(t => t.name.includes('Defensa'))?.url || TEAMS_DB[0].url, 
+                        resTeam2Logo: b64t1,
+                        resTeam1Logo: TEAMS_DB.find(t => t.name.includes('Defensa'))?.url || TEAMS_DB[0].url,
                         resTournamentLogo: b64l1,
-                        logoBase64: b64Logo 
+                        logoBase64: b64Logo
                     }));
                 };
                 initImages();
@@ -406,8 +439,8 @@
                         const { width, height } = containerRef.current.getBoundingClientRect();
                         const scaleX = (width - 40) / 1080;
                         const scaleY = (height - 40) / 1350;
-                        const scale = Math.min(scaleX, scaleY, 0.6); 
-                        setPreviewScale(Math.max(scale, 0.15)); 
+                        const scale = Math.min(scaleX, scaleY, 0.6);
+                        setPreviewScale(Math.max(scale, 0.15));
                     }
                 };
                 window.addEventListener('resize', handleResize);
@@ -415,7 +448,6 @@
                 return () => window.removeEventListener('resize', handleResize);
             }, [isPreviewMode]);
 
-            // GENERADOR DE FECHAS AUTOMÁTICO
             const getFormattedMatchInfo = () => {
                 let str = '';
                 if (data.matchDate) {
@@ -424,12 +456,8 @@
                     const dias = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
                     str += `${dias[d.getDay()]} ${parts[2]}/${parts[1]}`;
                 }
-                if (data.matchTime) {
-                    str += str ? ` | ${data.matchTime}HS` : `${data.matchTime}HS`;
-                }
-                if (data.matchStadium) {
-                    str += str ? ` | ESTADIO ${data.matchStadium.toUpperCase()}` : `ESTADIO ${data.matchStadium.toUpperCase()}`;
-                }
+                if (data.matchTime) str += str ? ` | ${data.matchTime}HS` : `${data.matchTime}HS`;
+                if (data.matchStadium) str += str ? ` | ESTADIO ${data.matchStadium.toUpperCase()}` : `ESTADIO ${data.matchStadium.toUpperCase()}`;
                 return str || 'SELECCIONA FECHA, HORA Y ESTADIO';
             };
 
@@ -437,19 +465,18 @@
                 const newRoster = [...roster];
                 newRoster[index].selected = !newRoster[index].selected;
                 setRoster(newRoster);
-
                 if (forFormation) {
                     const player = newRoster[index];
                     if (player.selected) {
                         if (data.formationList.length < 11) {
-                            setData(prev => ({...prev, formationList: [...prev.formationList, player]}));
+                            setData(prev => ({ ...prev, formationList: [...prev.formationList, player] }));
                         } else {
-                            alert("¡La formación inicial solo puede tener 11 jugadores como máximo!");
+                            alert('¡La formación inicial solo puede tener 11 jugadores como máximo!');
                             newRoster[index].selected = false;
                             setRoster([...newRoster]);
                         }
                     } else {
-                        setData(prev => ({...prev, formationList: prev.formationList.filter(p => p.name !== player.name)}));
+                        setData(prev => ({ ...prev, formationList: prev.formationList.filter(p => p.name !== player.name) }));
                     }
                 }
             };
@@ -479,65 +506,62 @@
                 setDraggedItemIndex(null);
             };
 
-            const handleImageUpload = (e) => {
+            const applyImageToCanvas = (base64OrUrl) => {
+                setImage(base64OrUrl);
+                setImagePos({ x: 0, y: 0 });
+                setImageScale(1);
+                setImageFit('contain');
+            };
+
+            const handleImageUpload = async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => { setImage(reader.result); setImagePos({x:0, y:0}); setImageScale(1); };
-                    reader.readAsDataURL(file);
+                    const dataUrl = await readFileAsDataUrl(file);
+                    applyImageToCanvas(dataUrl);
                 }
             };
 
             const handleUrlInput = async () => {
-                const url = prompt("Ingresa la URL de la imagen:");
-                if (url) { 
+                const url = prompt('Ingresa la URL de la imagen:');
+                if (url) {
                     setLoading(true);
                     const base64 = await convertUrlToBase64(url);
-                    setImage(base64 || url); 
-                    setImagePos({x:0, y:0});
-                    setImageScale(1); 
+                    applyImageToCanvas(base64 || url);
                     setLoading(false);
                 }
             };
 
             const handlePasteButton = async () => {
                 try {
-                    if (!navigator.clipboard || !navigator.clipboard.read) {
-                        throw new Error("No soportado");
-                    }
+                    if (!navigator.clipboard || !navigator.clipboard.read) throw new Error('No soportado');
                     const clipboardItems = await navigator.clipboard.read();
                     let foundImage = false;
                     for (const clipboardItem of clipboardItems) {
                         const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
                         if (imageTypes.length > 0) {
                             const blob = await clipboardItem.getType(imageTypes[0]);
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                setImage(reader.result);
-                                setImagePos({x:0, y:0});
-                                setImageScale(1);
-                            };
-                            reader.readAsDataURL(blob);
+                            const dataUrl = await readFileAsDataUrl(blob);
+                            applyImageToCanvas(dataUrl);
                             foundImage = true;
                             break;
                         }
                     }
-                    if (!foundImage) alert("No se encontró imagen copiada.");
+                    if (!foundImage) alert('No se encontró imagen copiada.');
                 } catch (err) {
                     console.error(err);
-                    alert("Tu navegador bloquea el pegado directo. Haz clic sobre la pantalla oscura y usa Ctrl+V / Cmd+V.");
+                    alert('Tu navegador bloquea el pegado directo. Haz clic sobre la pantalla oscura y usa Ctrl+V / Cmd+V.');
                 }
             };
 
-            const handleGlobalPaste = (e) => {
+            const handleGlobalPaste = async (e) => {
                 const items = e.clipboardData?.items;
                 if (!items) return;
                 for (let i = 0; i < items.length; i++) {
                     if (items[i].type.indexOf('image') !== -1) {
                         const blob = items[i].getAsFile();
-                        const reader = new FileReader();
-                        reader.onloadend = () => { setImage(reader.result); setImagePos({x:0, y:0}); setImageScale(1); };
-                        reader.readAsDataURL(blob);
+                        const dataUrl = await readFileAsDataUrl(blob);
+                        applyImageToCanvas(dataUrl);
+                        break;
                     }
                 }
             };
@@ -550,8 +574,8 @@
             };
 
             const getAlignIcon = () => {
-                if(data.statsAlign === 'left') return <AlignLeft size={16} className="text-blue-500"/>;
-                if(data.statsAlign === 'center') return <AlignCenter size={16} className="text-blue-500"/>;
+                if (data.statsAlign === 'left') return <AlignLeft size={16} className="text-blue-500"/>;
+                if (data.statsAlign === 'center') return <AlignCenter size={16} className="text-blue-500"/>;
                 return <AlignRight size={16} className="text-blue-500"/>;
             };
 
@@ -559,7 +583,6 @@
                 const team = TEAMS_DB.find(t => t.url === url);
                 const teamName = team ? team.name : '';
                 const base64 = await convertUrlToBase64(url);
-                
                 if (teamNum === 1) {
                     setData(prev => ({ ...prev, resTeam1Logo: base64, resTeam1Name: teamName.toUpperCase() }));
                 } else {
@@ -574,103 +597,121 @@
                 setData(prev => ({ ...prev, resTournamentLogo: base64, resTournamentName: tourName.toUpperCase() }));
             };
 
-            // --- DESCARGA CON SOPORTE NATIVO PARA MÓVILES (BLOB) ---
             const handleDownload = async () => {
                 if (!canvasRef.current || !wrapperRef.current) return;
                 setLoading(true);
-                
                 try {
                     await Promise.race([
                         document.fonts.ready,
-                        new Promise(resolve => setTimeout(resolve, 2000))
+                        new Promise(resolve => setTimeout(resolve, 2200))
                     ]);
-                    
+
+                    await waitForAllImages(canvasRef.current);
+                    await new Promise(resolve => setTimeout(resolve, 350));
+
                     const originalTransform = wrapperRef.current.style.transform;
                     wrapperRef.current.style.transform = 'scale(1)';
-                    
-                    await new Promise(resolve => setTimeout(resolve, 500)); 
+                    await new Promise(resolve => setTimeout(resolve, 120));
 
                     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
-                    const ratio = isMobile ? 1.5 : 3; 
+                    const fileName = `grafica-${activeTemplate}-${Date.now()}.png`;
+                    let blob = null;
 
-                    let dataUrl;
-                    if (window.htmlToImage) {
+                    const commonStyle = {
+                        margin: '0',
+                        transform: 'none',
+                        transformOrigin: 'center',
+                        width: '1080px',
+                        height: '1350px'
+                    };
+
+                    if (window.htmlToImage && !isMobile) {
                         try {
-                            dataUrl = await window.htmlToImage.toPng(canvasRef.current, {
-                                pixelRatio: ratio,
-                                quality: 0.95,
+                            blob = await window.htmlToImage.toBlob(canvasRef.current, {
+                                cacheBust: true,
+                                pixelRatio: 2.5,
                                 backgroundColor: THEME.bg,
-                                style: { transform: 'none' }
+                                style: commonStyle,
+                                skipAutoScale: true
                             });
                         } catch (e) {
-                            console.warn("html-to-image falló, intentando fallback", e);
+                            console.warn('html-to-image desktop falló:', e);
                         }
                     }
 
-                    if (!dataUrl && window.html2canvas) {
+                    if (!blob && window.html2canvas) {
                         const canvas = await window.html2canvas(canvasRef.current, {
-                            scale: ratio,
+                            scale: isMobile ? 2 : 2.6,
                             useCORS: true,
+                            allowTaint: false,
                             backgroundColor: THEME.bg,
+                            imageTimeout: 0,
+                            logging: false,
+                            removeContainer: true,
+                            foreignObjectRendering: false,
+                            onclone: async (doc) => {
+                                const clonedRoot = doc.querySelector('#root');
+                                if (clonedRoot) {
+                                    const imgs = clonedRoot.querySelectorAll('img');
+                                    imgs.forEach(img => {
+                                        img.setAttribute('crossorigin', 'anonymous');
+                                        img.style.imageRendering = 'auto';
+                                    });
+                                }
+                            }
                         });
-                        dataUrl = canvas.toDataURL('image/png', 0.95);
+                        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
                     }
 
-                    if (!dataUrl) throw new Error("Ningún renderizador funcionó");
+                    if (!blob && window.htmlToImage) {
+                        const dataUrl = await window.htmlToImage.toPng(canvasRef.current, {
+                            cacheBust: true,
+                            pixelRatio: isMobile ? 1.75 : 2,
+                            backgroundColor: THEME.bg,
+                            style: commonStyle,
+                            skipAutoScale: true
+                        });
+                        blob = dataUrlToBlob(dataUrl);
+                    }
+
+                    if (!blob) throw new Error('No se pudo generar la imagen.');
 
                     wrapperRef.current.style.transform = originalTransform;
-
-                    // CONVERSIÓN A BLOB
-                    const arr = dataUrl.split(',');
-                    const mime = arr[0].match(/:(.*?);/)[1];
-                    const bstr = atob(arr[1]);
-                    let n = bstr.length;
-                    const u8arr = new Uint8Array(n);
-                    while(n--){
-                        u8arr[n] = bstr.charCodeAt(n);
-                    }
-                    const blob = new Blob([u8arr], {type:mime});
-                    const blobUrl = URL.createObjectURL(blob);
-
-                    const link = document.createElement('a');
-                    link.download = `grafica-${activeTemplate}-${Date.now()}.png`;
-                    link.href = blobUrl;
-                    link.click();
-
-                    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-                } catch (err) { 
-                    console.error("Error capturando:", err);
-                    alert("Error al descargar. Tu dispositivo se quedó sin memoria, prueba usar un navegador diferente o desde PC."); 
+                    downloadBlob(blob, fileName);
+                } catch (err) {
+                    console.error('Error capturando:', err);
+                    alert('Error al descargar. Probá nuevamente y, si estás en móvil, usá Chrome actualizado.');
                     if (wrapperRef.current) wrapperRef.current.style.transform = `scale(${previewScale})`;
                 } finally {
                     setLoading(false);
                 }
             };
 
-            const titleGradientClass = "bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400";
-            const accentGradientClass = "bg-clip-text text-transparent bg-gradient-to-b from-[#1D4ED8] to-[#0F3577]";
+            const titleGradientClass = 'bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400';
+            const accentGradientClass = 'bg-clip-text text-transparent bg-gradient-to-b from-[#1D4ED8] to-[#0F3577]';
 
             const BackgroundImage = () => (
                 <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
                     {image && (
-                        <CorsImg 
-                            src={image} 
-                            alt="Background" 
+                        <CorsImg
+                            src={image}
+                            alt="Background"
                             className="transition-transform duration-100"
-                            style={{ 
-                                width: '100%', height: '100%', objectFit: imageFit, 
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: imageFit,
                                 transform: `translate(${imagePos.x}px, ${imagePos.y}px) scale(${imageScale})`,
-                                filter: imageFilter 
+                                filter: imageFilter,
+                                objectPosition: 'center center'
                             }}
                         />
                     )}
                     {data.blueOverlay ? (
                         <div className="absolute inset-0 bg-gradient-to-br from-[#021024]/90 via-[#0f3577]/70 to-[#1e40af]/60 mix-blend-multiply" />
                     ) : (
-                        <div className="absolute inset-0 bg-[#021024]/40 mix-blend-multiply" /> 
+                        <div className="absolute inset-0 bg-[#021024]/40 mix-blend-multiply" />
                     )}
-                    
-                    {/* OVERLAY EXTRA - Opacidad Alta */}
                     {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && data.hjOverlayUrl && (
                         <div className="absolute inset-0 z-10 opacity-90 pointer-events-none" style={{ mixBlendMode: data.hjOverlayBlendMode }}>
                             <CorsImg src={data.hjOverlayUrl} className="w-full h-full object-cover" />
@@ -683,19 +724,14 @@
                 <CorsImg src={data.logoBase64 || THEME.logo} alt="Logo" className="h-24 w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
             );
 
-            // --- PLANTILLAS ---
-            
-            // 1. ESTADÍSTICAS
             const renderEstadisticas = () => {
-                let dynamicSizeClass = 'text-[12rem]'; 
+                let dynamicSizeClass = 'text-[12rem]';
                 let labelSizeClass = 'text-3xl';
                 let gapClass = 'gap-6';
                 let mainNumberSizeClass = 'text-[14rem]';
                 let mainLabelSizeClass = 'text-3xl';
                 let pyClass = 'py-2';
-
                 const totalItems = data.statsShowMain ? data.statsList.length + 1 : data.statsList.length;
-
                 if (totalItems >= 7) {
                     dynamicSizeClass = 'text-[5.5rem]';
                     labelSizeClass = 'text-xl';
@@ -718,30 +754,25 @@
                     gapClass = 'gap-4';
                     pyClass = 'py-1';
                 }
-
                 if (data.statsShowMain) {
                     const mainLen = data.statsBigNumber.toString().length;
                     if (mainLen >= 4 && mainLen <= 5) mainNumberSizeClass = 'text-[8.5rem]';
                     else if (mainLen >= 6 && mainLen <= 8) mainNumberSizeClass = 'text-[7rem]';
                     else if (mainLen > 8) mainNumberSizeClass = 'text-[5rem]';
                 }
-
                 let alignClass = 'items-end pr-24 pl-12';
                 let textColClass = 'w-[50%]';
                 let textColAlign = 'items-end text-right';
                 let dataWrapperAlign = 'justify-end w-[50%]';
-                let linePlacement = 'right-full mr-8'; 
+                let linePlacement = 'right-full mr-8';
                 let gradientClass = 'bg-gradient-to-r from-transparent via-[#021024]/50 to-[#021024] via-40%';
-                
-                // Lógica de dirección del contenedor para evitar el corte del texto
                 let titleAlignContainer = 'rtl';
-
                 if (data.statsAlign === 'left') {
                     alignClass = 'items-start pl-24 pr-12';
                     textColClass = 'w-[50%]';
                     textColAlign = 'items-start text-left';
                     dataWrapperAlign = 'justify-start w-[50%]';
-                    linePlacement = 'left-full ml-8'; 
+                    linePlacement = 'left-full ml-8';
                     gradientClass = 'bg-gradient-to-l from-transparent via-[#021024]/50 to-[#021024] via-40%';
                     titleAlignContainer = 'ltr';
                 } else if (data.statsAlign === 'center') {
@@ -752,77 +783,49 @@
                     gradientClass = 'bg-gradient-to-t from-[#021024] via-[#021024]/60 to-transparent';
                     titleAlignContainer = 'ltr';
                 }
-
                 return (
-                <div className="w-[1080px] h-[1350px] relative flex flex-col bg-[#021024] overflow-hidden">
-                    <BackgroundImage />
-                    <div className={`absolute inset-0 ${gradientClass}`} />
-                    
-                    <div className={`relative z-10 w-full h-full flex flex-col ${alignClass} pt-20 pb-16`}>
-                        <div className={`flex flex-col ${textColClass} mb-10 ${textColAlign} overflow-visible`}>
-                            {/* TÍTULO ANTI-CORTE */}
-                            <div className={`w-full overflow-visible ${data.statsAlign === 'center' ? 'text-center' : ''}`} style={{ direction: titleAlignContainer }}>
-                                <h1 className={`${getStatsTitleSizeClass(data.statsTitle)} font-azonix tracking-wider leading-[1.1] drop-shadow-lg whitespace-nowrap inline-block ${fontWeightClass}`} style={{ color: THEME.accent, direction: 'ltr' }}>
-                                    {data.statsTitle}
-                                </h1>
+                    <div className="w-[1080px] h-[1350px] relative flex flex-col bg-[#021024] overflow-hidden">
+                        <BackgroundImage />
+                        <div className={`absolute inset-0 ${gradientClass}`} />
+                        <div className={`relative z-10 w-full h-full flex flex-col ${alignClass} pt-20 pb-16`}>
+                            <div className={`flex flex-col ${textColClass} mb-10 ${textColAlign} overflow-visible`}>
+                                <div className={`w-full overflow-visible ${data.statsAlign === 'center' ? 'text-center' : ''}`} style={{ direction: titleAlignContainer }}>
+                                    <h1 className={`${getStatsTitleSizeClass(data.statsTitle)} font-azonix tracking-wider leading-[1.1] drop-shadow-lg whitespace-nowrap inline-block ${fontWeightClass}`} style={{ color: THEME.accent, direction: 'ltr' }}>
+                                        {data.statsTitle}
+                                    </h1>
+                                </div>
+                                <h2 className="text-4xl font-azonix text-white tracking-widest mt-4 uppercase drop-shadow-md w-full">{data.statsSubtitle}</h2>
+                                {data.statsAlign === 'center' && <div className="w-[40%] h-1.5 rounded-full mt-6 shadow-lg mx-auto" style={{ backgroundColor: THEME.accent }}></div>}
                             </div>
-                            
-                            <h2 className={`text-4xl font-azonix text-white tracking-widest mt-4 uppercase drop-shadow-md w-full`}>
-                                {data.statsSubtitle}
-                            </h2>
-                            {data.statsAlign === 'center' && (
-                                <div className="w-[40%] h-1.5 rounded-full mt-6 shadow-lg mx-auto" style={{ backgroundColor: THEME.accent }}></div>
-                            )}
-                        </div>
-                        
-                        <div className={`flex flex-grow ${dataWrapperAlign} relative`}>
-                            <div className={`flex flex-col items-center justify-center min-w-[320px] ${gapClass} h-full z-10 relative max-w-full`}>
-                                {data.statsAlign !== 'center' && (
-                                    <div className={`absolute top-0 bottom-0 w-1.5 rounded-full shadow-lg ${linePlacement}`} style={{ backgroundColor: THEME.accent }}></div>
-                                )}
-                                
-                                {data.statsShowMain && (
-                                    <React.Fragment>
-                                        <div className={`text-center flex flex-col items-center justify-center ${pyClass} w-full max-w-full`}>
-                                            <span className={`block font-talleres leading-[0.95] text-white drop-shadow-2xl px-2 ${mainNumberSizeClass}`} style={{ color: data.statsHighlightFirst ? THEME.accent : 'white' }}>
-                                                {data.statsBigNumber}
-                                            </span>
-                                            <span className={`${mainLabelSizeClass} ${fontWeightClass} font-azonix tracking-widest text-white uppercase block mt-1 drop-shadow-md`}>
-                                                {data.statsBigLabel}
-                                            </span>
-                                        </div>
-                                        <div className="w-full h-[2px] bg-white opacity-80 shadow-md my-1"></div>
-                                    </React.Fragment>
-                                )}
-
-                                {!data.statsHighlightFirst && !data.statsShowMain && null}
-
-                                {data.statsList.map((stat, idx) => (
-                                    <React.Fragment key={idx}>
-                                        <div className={`text-center flex flex-col items-center justify-center ${pyClass} w-full max-w-full`}>
-                                            <span className={`block font-talleres leading-[0.95] px-2 ${dynamicSizeClass} drop-shadow-lg`} style={{ color: 'white' }}>
-                                                {stat.value}
-                                            </span>
-                                            <span className={`${labelSizeClass} ${fontWeightClass} font-azonix tracking-widest uppercase drop-shadow-md mt-2`} style={{ color: THEME.accent }}>
-                                                {stat.label}
-                                            </span>
-                                        </div>
-                                        {idx !== data.statsList.length - 1 && (
-                                            <div className="w-full h-[1px] bg-white/50 my-1"></div>
-                                        )}
-                                    </React.Fragment>
-                                ))}
+                            <div className={`flex flex-grow ${dataWrapperAlign} relative`}>
+                                <div className={`flex flex-col items-center justify-center min-w-[320px] ${gapClass} h-full z-10 relative max-w-full`}>
+                                    {data.statsAlign !== 'center' && <div className={`absolute top-0 bottom-0 w-1.5 rounded-full shadow-lg ${linePlacement}`} style={{ backgroundColor: THEME.accent }}></div>}
+                                    {data.statsShowMain && (
+                                        <>
+                                            <div className={`text-center flex flex-col items-center justify-center ${pyClass} w-full max-w-full`}>
+                                                <span className={`block font-talleres leading-[0.95] text-white drop-shadow-2xl px-2 ${mainNumberSizeClass}`} style={{ color: data.statsHighlightFirst ? THEME.accent : 'white' }}>{data.statsBigNumber}</span>
+                                                <span className={`${mainLabelSizeClass} ${fontWeightClass} font-azonix tracking-widest text-white uppercase block mt-1 drop-shadow-md`}>{data.statsBigLabel}</span>
+                                            </div>
+                                            <div className="w-full h-[2px] bg-white opacity-80 shadow-md my-1"></div>
+                                        </>
+                                    )}
+                                    {data.statsList.map((stat, idx) => (
+                                        <React.Fragment key={idx}>
+                                            <div className={`text-center flex flex-col items-center justify-center ${pyClass} w-full max-w-full`}>
+                                                <span className={`block font-talleres leading-[0.95] px-2 ${dynamicSizeClass} drop-shadow-lg`} style={{ color: 'white' }}>{stat.value}</span>
+                                                <span className={`${labelSizeClass} ${fontWeightClass} font-azonix tracking-widest uppercase drop-shadow-md mt-2`} style={{ color: THEME.accent }}>{stat.label}</span>
+                                            </div>
+                                            {idx !== data.statsList.length - 1 && <div className="w-full h-[1px] bg-white/50 my-1"></div>}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-
-                        <div className={`flex justify-center w-full mt-auto pt-6 absolute bottom-12 left-0 right-0 pointer-events-none`}>
-                            <LogoComponent />
+                            <div className="flex justify-center w-full mt-auto pt-6 absolute bottom-12 left-0 right-0 pointer-events-none"><LogoComponent /></div>
                         </div>
                     </div>
-                </div>
-            )};
+                );
+            };
 
-            // 2. CONVOCADOS
             const renderConvocados = () => {
                 const selectedPlayers = getSortedConvocados();
                 const count = selectedPlayers.length;
@@ -830,57 +833,46 @@
                 const col1 = selectedPlayers.slice(0, midPoint);
                 const col2 = selectedPlayers.slice(midPoint);
                 const maxPlayersPerCol = Math.max(col1.length, col2.length);
-                
-                let textSizeClass = "text-4xl"; 
-                let numberSizeClass = "text-[4.5rem]";
-                let gapClass = "gap-4";
-
+                let textSizeClass = 'text-4xl';
+                let numberSizeClass = 'text-[4.5rem]';
+                let gapClass = 'gap-4';
                 if (maxPlayersPerCol > 16) {
-                    textSizeClass = "text-[1.5rem]";
-                    numberSizeClass = "text-[2rem]";
-                    gapClass = "gap-0"; 
+                    textSizeClass = 'text-[1.5rem]';
+                    numberSizeClass = 'text-[2rem]';
+                    gapClass = 'gap-0';
                 } else if (maxPlayersPerCol > 14) {
-                    textSizeClass = "text-[1.75rem]";
-                    numberSizeClass = "text-[2.25rem]";
-                    gapClass = "gap-0"; 
-                } else if (maxPlayersPerCol > 12) { 
-                    textSizeClass = "text-[2rem]";
-                    numberSizeClass = "text-[2.5rem]";
-                    gapClass = "gap-1"; 
-                } else if (maxPlayersPerCol > 10) { 
-                    textSizeClass = "text-[2.25rem]"; 
-                    numberSizeClass = "text-[3rem]";
-                    gapClass = "gap-2";
-                } else if (maxPlayersPerCol > 8) { 
-                    textSizeClass = "text-[2.5rem]"; 
-                    numberSizeClass = "text-[3.25rem]";
-                    gapClass = "gap-3";
+                    textSizeClass = 'text-[1.75rem]';
+                    numberSizeClass = 'text-[2.25rem]';
+                    gapClass = 'gap-0';
+                } else if (maxPlayersPerCol > 12) {
+                    textSizeClass = 'text-[2rem]';
+                    numberSizeClass = 'text-[2.5rem]';
+                    gapClass = 'gap-1';
+                } else if (maxPlayersPerCol > 10) {
+                    textSizeClass = 'text-[2.25rem]';
+                    numberSizeClass = 'text-[3rem]';
+                    gapClass = 'gap-2';
+                } else if (maxPlayersPerCol > 8) {
+                    textSizeClass = 'text-[2.5rem]';
+                    numberSizeClass = 'text-[3.25rem]';
+                    gapClass = 'gap-3';
                 }
-
                 const fechaStr = getFormattedMatchInfo();
-
                 return (
                     <div className="w-[1080px] h-[1350px] relative flex flex-col bg-[#021024]">
                         <BackgroundImage />
                         <div className="absolute inset-0 bg-[#021024]/80 mix-blend-multiply" />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-transparent to-transparent" />
-                        
                         <div className="relative z-10 p-14 h-full flex flex-col">
                             <div className="border-b-2 pb-4 mb-4 flex justify-between items-center flex-none" style={{ borderColor: 'white' }}>
                                 <p className={`text-white text-xl font-azonix tracking-[0.2em] uppercase ${fontWeightClass}`}>{fechaStr}</p>
                             </div>
-                            
                             <div className="mb-4 flex flex-col items-start gap-1 flex-none border-l-8 pl-6" style={{ borderColor: THEME.accent }}>
-                                <h1 className={`text-[6.5rem] font-azonix uppercase leading-none ${titleGradientClass}`}>
-                                    CONVOCADOS
-                                </h1>
+                                <h1 className={`text-[6.5rem] font-azonix uppercase leading-none ${titleGradientClass}`}>CONVOCADOS</h1>
                                 <div className="flex items-center gap-3">
-                                    <h2 className={`text-4xl font-azonix text-white tracking-wide uppercase drop-shadow-lg`}>
-                                        VS <span style={{color: THEME.accent}}>{data.rivalName}</span>
-                                    </h2>
+                                    <h2 className="text-4xl font-azonix text-white tracking-wide uppercase drop-shadow-lg">VS <span style={{color: THEME.accent}}>{data.rivalName}</span></h2>
                                 </div>
                             </div>
-
                             <div className="flex-grow flex items-start justify-center overflow-hidden py-2 mt-4">
                                 <div className="grid grid-cols-2 gap-12 w-full">
                                     <div className={`flex flex-col justify-start ${gapClass}`}>
@@ -901,7 +893,6 @@
                                     </div>
                                 </div>
                             </div>
-
                             <div className="mt-auto flex justify-between items-end border-t border-gray-600 pt-6 flex-none bg-[#021024]/50 p-2 rounded-t-lg backdrop-blur-sm">
                                 <div>
                                     <p className={`text-2xl text-white font-azonix tracking-widest uppercase mb-1 ${fontWeightClass}`} style={{color: THEME.accent}}>DT {data.dtName}</p>
@@ -914,196 +905,140 @@
                 );
             };
 
-            // 3. NOTICIA ESPECIAL
             const renderNoticiaEspecial = () => (
                 <div className="w-[1080px] h-[1350px] relative flex items-center justify-center bg-[#021024] canvas-target">
                     <div className="absolute inset-0 z-0 opacity-30">
                         <BackgroundImage />
-                        <div className="absolute inset-0 backdrop-grayscale" /> 
+                        <div className="absolute inset-0 backdrop-grayscale" />
                     </div>
                     <div className="relative z-10 w-full h-full flex p-16 items-stretch">
                         <div className="w-[45%] flex flex-col justify-center items-start pr-10 border-r-4 border-blue-600" style={{borderColor: THEME.accent}}>
-                            <h1 className={`text-[6rem] font-azonix leading-[0.9] uppercase drop-shadow-2xl text-left ${titleGradientClass}`} style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>
-                                {data.specialTitle}
-                            </h1>
+                            <h1 className={`text-[6rem] font-azonix leading-[0.9] uppercase drop-shadow-2xl text-left ${titleGradientClass}`} style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>{data.specialTitle}</h1>
                         </div>
                         <div className="w-[55%] flex flex-col pl-12 justify-center h-full">
-                            <div className={`text-white text-3xl font-azonix leading-tight tracking-wide whitespace-pre-wrap drop-shadow-md`}>
-                                {data.specialBody}
-                            </div>
+                            <div className="text-white text-3xl font-azonix leading-tight tracking-wide whitespace-pre-wrap drop-shadow-md">{data.specialBody}</div>
                         </div>
                     </div>
-                    <div className="absolute bottom-12 right-12">
-                        <LogoComponent />
-                    </div>
+                    <div className="absolute bottom-12 right-12"><LogoComponent /></div>
                 </div>
             );
 
-            // 4. NOTICIA COMUN
             const renderNoticiaComun = () => (
                 <div className="w-[1080px] h-[1350px] relative bg-[#021024] canvas-target">
                     <BackgroundImage />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-[#021024]/80 to-transparent via-30%" />
-                    
-                    <div className="absolute top-10 right-10 z-20 drop-shadow-lg">
-                        <LogoComponent />
-                    </div>
-
+                    <div className="absolute top-10 right-10 z-20 drop-shadow-lg"><LogoComponent /></div>
                     <div className="relative z-10 w-full h-full flex flex-col justify-end pb-20 px-12 text-center">
                         {data.newsShowTag && (
                             <div className="mb-0 inline-block mx-auto">
-                                <span 
-                                    className={`px-6 py-3 text-3xl font-azonix text-white uppercase tracking-widest shadow-lg`}
-                                    style={{ backgroundColor: data.newsTagColor }}
-                                >
-                                    {data.newsTag}
-                                </span>
+                                <span className="px-6 py-3 text-3xl font-azonix text-white uppercase tracking-widest shadow-lg" style={{ backgroundColor: data.newsTagColor }}>{data.newsTag}</span>
                             </div>
                         )}
-                        <div className="mb-8 inline-block mx-auto px-10 py-6 shadow-xl relative z-20" style={{ backgroundColor: '#021024' }}> 
-                            <h1 className={`text-7xl font-azonix uppercase leading-none tracking-tight ${accentGradientClass}`}> 
-                                {data.newsTitle}
-                            </h1>
+                        <div className="mb-8 inline-block mx-auto px-10 py-6 shadow-xl relative z-20" style={{ backgroundColor: '#021024' }}>
+                            <h1 className="text-7xl font-azonix uppercase leading-none tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-[#1D4ED8] to-[#0F3577]">{data.newsTitle}</h1>
                         </div>
-                        <p className={`text-4xl text-white font-azonix tracking-wide max-w-[95%] mx-auto leading-tight drop-shadow-2xl relative z-20`}>
-                            {data.newsSubtitle}
-                        </p>
+                        <p className="text-4xl text-white font-azonix tracking-wide max-w-[95%] mx-auto leading-tight drop-shadow-2xl relative z-20">{data.newsSubtitle}</p>
                     </div>
                 </div>
             );
 
-            // 5. FORMACIÓN
             const renderFormacion = () => {
                 const fechaStr = getFormattedMatchInfo();
-                
                 return (
-                <div className="w-[1080px] h-[1350px] relative bg-[#021024] flex flex-col items-center">
-                    <div className="absolute inset-0 z-0">
-                        <BackgroundImage />
-                        <div className="absolute inset-0 bg-[#021024]/60 mix-blend-multiply" />
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-                        <div className="w-[80%] h-[80%] bg-white rounded-full blur-3xl"></div>
-                    </div>
-
-                    <div className="relative z-10 w-full h-full flex flex-col items-center pt-16 pb-8 px-12">
-                        <h3 className={`text-white font-azonix tracking-[0.3em] text-xl uppercase mb-6 border-b-2 pb-2 px-12 flex-none ${fontWeightClass}`}>
-                            {fechaStr}
-                        </h3>
-                        <h1 className={`text-[7rem] font-azonix uppercase mb-4 leading-none tracking-tighter text-center flex-none`}>
-                            <span className={`${titleGradientClass} drop-shadow-2xl`}>FORMACIÓN</span> 
-                            {' '}
-                            <span className={accentGradientClass}>INICIAL</span>
-                        </h1>
-                        
-                        <div className="flex flex-col items-center flex-grow justify-center w-full gap-4 mt-4"> 
-                            {/* Slice estricto a 11 */}
-                            {data.formationList.slice(0, 11).map((player, idx) => (
-                                <div key={idx} className="text-center w-full relative group flex items-center justify-center gap-8 h-[7%]">
-                                    <span className={`text-[6.5rem] font-talleres leading-none ${fontWeightClass}`} style={{ color: THEME.accent }}>
-                                        {player.number}
-                                    </span>
-                                    <span className={`text-[3.5rem] font-azonix text-white tracking-widest drop-shadow-lg uppercase leading-none translate-y-3`}>
-                                        {abbreviateName(player.name)}
-                                    </span>
-                                </div>
-                            ))}
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] flex flex-col items-center">
+                        <div className="absolute inset-0 z-0">
+                            <BackgroundImage />
+                            <div className="absolute inset-0 bg-[#021024]/60 mix-blend-multiply" />
                         </div>
-
-                        <div className="mt-8 flex flex-col items-center gap-2 flex-none">
-                            <div className="bg-[#021024] px-8 py-3 rounded-full border border-blue-900 shadow-xl">
-                                <span className={`text-2xl text-white font-azonix tracking-widest uppercase drop-shadow-lg ${fontWeightClass}`}>
-                                    DT {data.dtName}
-                                </span>
+                        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none"><div className="w-[80%] h-[80%] bg-white rounded-full blur-3xl"></div></div>
+                        <div className="relative z-10 w-full h-full flex flex-col items-center pt-16 pb-8 px-12">
+                            <h3 className={`text-white font-azonix tracking-[0.3em] text-xl uppercase mb-6 border-b-2 pb-2 px-12 flex-none ${fontWeightClass}`}>{fechaStr}</h3>
+                            <h1 className="text-[7rem] font-azonix uppercase mb-4 leading-none tracking-tighter text-center flex-none"><span className={titleGradientClass}>FORMACIÓN</span> <span className={accentGradientClass}>INICIAL</span></h1>
+                            <div className="flex flex-col items-center flex-grow justify-center w-full gap-4 mt-4">
+                                {data.formationList.slice(0, 11).map((player, idx) => (
+                                    <div key={idx} className="text-center w-full relative group flex items-center justify-center gap-8 h-[7%]">
+                                        <span className={`text-[6.5rem] font-talleres leading-none ${fontWeightClass}`} style={{ color: THEME.accent }}>{player.number}</span>
+                                        <span className="text-[3.5rem] font-azonix text-white tracking-widest drop-shadow-lg uppercase leading-none translate-y-3">{abbreviateName(player.name)}</span>
+                                    </div>
+                                ))}
                             </div>
-                            <LogoComponent />
+                            <div className="mt-8 flex flex-col items-center gap-2 flex-none">
+                                <div className="bg-[#021024] px-8 py-3 rounded-full border border-blue-900 shadow-xl">
+                                    <span className={`text-2xl text-white font-azonix tracking-widest uppercase drop-shadow-lg ${fontWeightClass}`}>DT {data.dtName}</span>
+                                </div>
+                                <LogoComponent />
+                            </div>
                         </div>
                     </div>
-                </div>
-            )};
+                );
+            };
 
-            // 6. HOY JUEGA
             const renderHoyJuega = () => {
                 const isLeft = data.hjLogosPosX === 'left';
                 const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
-                
-                // Escudos tapados parcialmente por la cinta
-                const logosXClass = isLeft ? 'left-[1rem]' : 'right-[1rem]';
-                const logosYClass = 'bottom-[4rem]'; // Siempre abajo
-
-                // Logo de Torneo siempre a la contra
+                const logosXClass = isLeft ? 'left-[1.2rem]' : 'right-[1.2rem]';
+                const logosYClass = 'bottom-[4.2rem]';
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
-                const infoYClass = 'bottom-12'; 
-
-                const boxPaddingClass = isLeft ? 'pl-[4.5rem] pr-2' : 'pr-[4.5rem] pl-2';
+                const infoYClass = 'bottom-12';
+                const boxPaddingClass = isLeft ? 'pl-[3.8rem] pr-2' : 'pr-[3.8rem] pl-2';
 
                 return (
                     <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
                         <BackgroundImage />
-                        
                         <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/80 via-transparent to-[#021024]/80 pointer-events-none z-0" />
+                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20"><LogoComponent /></div>
 
-                        {/* Top Center Logo */}
-                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20">
-                            <LogoComponent />
-                        </div>
-
-                        {/* Tournament Logo (A la contra) - Z-INDEX MAXIMO, MÁS PEQUEÑO */}
                         <div className={`absolute ${infoYClass} ${infoXClass} z-50 flex items-center`}>
                             <div className="w-24 h-24 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
                                 {data.resTournamentLogo && <CorsImg src={data.resTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" />}
                             </div>
                         </div>
 
-                        {/* Cajas de Logos - z-20 */}
                         <div className={`absolute ${logosXClass} ${logosYClass} flex flex-col z-20 drop-shadow-[0_15px_25px_rgba(0,0,0,0.8)]`}>
-                            <div className={`w-[16rem] h-52 flex items-center justify-center py-6 ${boxPaddingClass} relative overflow-hidden`} style={{ background: `linear-gradient(to bottom right, ${data.resColor1A}, ${data.resColor1B}, ${data.resColor1C})` }}>
+                            <div className={`w-[13.4rem] h-44 flex items-center justify-center py-5 ${boxPaddingClass} relative overflow-hidden`} style={{ background: `linear-gradient(to bottom right, ${data.resColor1A}, ${data.resColor1B}, ${data.resColor1C})` }}>
                                 {data.resTeam1Logo && <CorsImg src={data.resTeam1Logo} className="w-full h-full object-contain drop-shadow-xl filter brightness-0 invert relative z-10" />}
                             </div>
-                            <div className={`w-[16rem] h-52 flex items-center justify-center py-6 ${boxPaddingClass} relative overflow-hidden`} style={{ background: `linear-gradient(to bottom right, ${data.resColor2A}, ${data.resColor2B}, ${data.resColor2C})` }}>
+                            <div className={`w-[13.4rem] h-44 flex items-center justify-center py-5 ${boxPaddingClass} relative overflow-hidden`} style={{ background: `linear-gradient(to bottom right, ${data.resColor2A}, ${data.resColor2B}, ${data.resColor2C})` }}>
                                 {data.resTeam2Logo && <CorsImg src={data.resTeam2Logo} className="w-full h-full object-contain drop-shadow-xl filter brightness-0 invert relative z-10" />}
                             </div>
                         </div>
 
-                        {/* Franja vertical derecha con texto - z-40 */}
                         <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
-                            <div className={`whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase`}>
-                                HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA
-                            </div>
+                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA</div>
                         </div>
 
-                        {/* Texto Central Fijo (HOY JUEGA TALLERES) */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-10 pointer-events-none w-full"
-                             style={{ mixBlendMode: data.hjTextBlendMode }}>
-                            <h1 
-                                className={`text-[5.5rem] font-azonix tracking-wider leading-[0.95] drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)] text-center w-full break-words px-[6rem] ${data.hjTextHollow1 ? 'text-transparent' : ''}`}
-                                style={{ 
-                                    WebkitTextStroke: data.hjTextHollow1 ? `3px ${data.hjTextColor1}` : 'none',
-                                    color: data.hjTextHollow1 ? 'transparent' : data.hjTextColor1 
-                                }}
-                            >
-                                {data.hjTextLine1}
-                            </h1>
-                            <h2 
-                                className="text-[6.5rem] font-azonix tracking-widest leading-[0.85] uppercase mt-2 drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] text-center w-full break-words px-[6rem]"
-                                style={{ color: data.hjTextColor2, textShadow: '0 15px 30px rgba(0,0,0,0.9)' }}
-                            >
-                                {data.hjTextLine2}
-                            </h2>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-10 pointer-events-none w-full">
+                            <div className="w-full text-center px-[5.4rem]" style={{ mixBlendMode: data.hjTextBlendMode1 }}>
+                                <h1
+                                    className="text-[6.8rem] font-azonix tracking-[0.08em] leading-[0.93] drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)] text-center w-full break-words"
+                                    style={{
+                                        WebkitTextStroke: data.hjTextHollow1 ? `3px ${data.hjTextColor1}` : '0px transparent',
+                                        color: data.hjTextHollow1 ? 'transparent' : data.hjTextColor1,
+                                        textShadow: data.hjTextHollow1 ? '0 8px 20px rgba(0,0,0,0.8)' : '0 15px 30px rgba(0,0,0,0.9)'
+                                    }}
+                                >
+                                    {data.hjTextLine1}
+                                </h1>
+                            </div>
+                            <div className="w-full text-center px-[5.2rem] mt-1" style={{ mixBlendMode: data.hjTextBlendMode2 }}>
+                                <h2
+                                    className="text-[8.15rem] font-azonix tracking-[0.12em] leading-[0.84] uppercase text-center w-full break-words"
+                                    style={{ color: data.hjTextColor2, textShadow: '0 15px 30px rgba(0,0,0,0.9)' }}
+                                >
+                                    {data.hjTextLine2}
+                                </h2>
+                            </div>
                         </div>
                     </div>
                 );
             };
 
-            // 7. RESULTADO FINAL
             const renderResultadoFINAL = () => {
                 const isLeft = data.hjLogosPosX === 'left';
                 const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
-                
                 const blockXClass = isLeft ? 'left-[4.5rem]' : 'right-[4.5rem]';
-                const blockYClass = 'bottom-[4rem]'; 
-
-                const infoYClass = 'bottom-12'; 
+                const blockYClass = 'bottom-[3.3rem]';
+                const infoYClass = 'bottom-12';
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
 
                 return (
@@ -1111,48 +1046,38 @@
                         <BackgroundImage />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/90 via-transparent to-[#021024]/90 pointer-events-none z-0" />
 
-                        {/* Ribbon MISMO LADO */}
                         <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
-                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">
-                                RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL
-                            </div>
+                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL</div>
                         </div>
 
-                        {/* Top Logo Central */}
-                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20">
-                            <LogoComponent />
-                        </div>
+                        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20"><LogoComponent /></div>
 
-                        {/* Caja Central y Marcador */}
-                        <div className={`absolute ${blockYClass} ${blockXClass} flex z-20 drop-shadow-[0_20px_25px_rgba(0,0,0,0.9)] ${isLeft ? 'flex-row' : 'flex-row-reverse'}`}>
-                            
+                        <div className={`absolute ${blockYClass} ${blockXClass} flex z-20 drop-shadow-[0_20px_25px_rgba(0,0,0,0.9)] ${isLeft ? 'flex-row' : 'flex-row-reverse'} items-stretch`}>
                             <div className="flex flex-col">
-                                <div className="w-[14rem] h-[11rem] flex items-center justify-center p-6 border-b-4 border-black/40" style={{ background: `linear-gradient(to bottom right, ${data.resColor1A}, ${data.resColor1B}, ${data.resColor1C})` }}>
+                                <div className="w-[16rem] h-[12rem] flex items-center justify-center p-6 border-b-4 border-black/40" style={{ background: `linear-gradient(to bottom right, ${data.resColor1A}, ${data.resColor1B}, ${data.resColor1C})` }}>
                                     {data.resTeam1Logo && <CorsImg src={data.resTeam1Logo} className="w-full h-full object-contain filter brightness-0 invert drop-shadow-md" />}
                                 </div>
-                                <div className="w-[14rem] h-[11rem] flex items-center justify-center p-6" style={{ background: `linear-gradient(to bottom right, ${data.resColor2A}, ${data.resColor2B}, ${data.resColor2C})` }}>
+                                <div className="w-[16rem] h-[12rem] flex items-center justify-center p-6" style={{ background: `linear-gradient(to bottom right, ${data.resColor2A}, ${data.resColor2B}, ${data.resColor2C})` }}>
                                     {data.resTeam2Logo && <CorsImg src={data.resTeam2Logo} className="w-full h-full object-contain filter brightness-0 invert drop-shadow-md" />}
                                 </div>
                             </div>
 
-                            <div className={`bg-white w-[9.5rem] flex flex-col items-center justify-center py-4 border-y-2 border-gray-300 ${isLeft ? 'rounded-r-[2.5rem] border-r-2' : 'rounded-l-[2.5rem] border-l-2'}`}>
-                                <div className="flex-1 flex items-center justify-center w-full">
-                                    <span className={`text-[8.5rem] font-talleres text-[#04122D] leading-none translate-y-3 ${fontWeightClass}`}>{data.resScore1}</span>
+                            <div className={`bg-white w-[12rem] flex flex-col items-center justify-stretch py-0 border-y-2 border-gray-300 ${isLeft ? 'rounded-r-[2.8rem] border-r-2' : 'rounded-l-[2.8rem] border-l-2'}`}>
+                                <div className="h-[12rem] flex items-center justify-center w-full relative">
+                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(10px)' }}>{data.resScore1}</span>
                                 </div>
-                                <div className="w-[60%] h-1.5 bg-gray-300 rounded-full my-2"></div>
-                                <div className="flex-1 flex items-center justify-center w-full">
-                                    <span className={`text-[8.5rem] font-talleres text-[#04122D] leading-none translate-y-3 ${fontWeightClass}`}>{data.resScore2}</span>
+                                <div className="w-[62%] h-1.5 bg-gray-300 rounded-full my-0"></div>
+                                <div className="h-[12rem] flex items-center justify-center w-full relative">
+                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(10px)' }}>{data.resScore2}</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Opposite Tournament Logo (SIN TEXTO Y A LA CONTRA) */}
                         <div className={`absolute ${infoYClass} ${infoXClass} z-50 flex items-center`}>
                             <div className="w-24 h-24 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,0,0,0.8)]">
                                 {data.resTournamentLogo && <CorsImg src={data.resTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" />}
                             </div>
                         </div>
-
                     </div>
                 );
             };
@@ -1164,7 +1089,7 @@
                     case TEMPLATES.NOTICIA_ESPECIAL: return renderNoticiaEspecial();
                     case TEMPLATES.NOTICIA_COMUN: return renderNoticiaComun();
                     case TEMPLATES.FORMACION: return renderFormacion();
-                    case TEMPLATES.RESULTADO_FINAL: return renderResultadoFINAL(); 
+                    case TEMPLATES.RESULTADO_FINAL: return renderResultadoFINAL();
                     case TEMPLATES.HOY_JUEGA: return renderHoyJuega();
                     default: return null;
                 }
@@ -1181,425 +1106,307 @@
 
             return (
                 <div className="min-h-screen bg-slate-900 text-white font-sans flex flex-col md:flex-row overflow-hidden">
-                  
-                  {/* SIDEBAR EDITOR */}
-                  {!isPreviewMode && (
-                    <div className="w-full md:w-[450px] bg-slate-800 border-r border-slate-700 flex flex-col h-screen z-50 shadow-xl relative">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-                            <h1 className="text-xl font-bold text-blue-400 flex items-center gap-2"><Layout size={20}/> EDITOR</h1>
-                        </div>
-
-                        <div className="p-2 grid grid-cols-4 gap-1 border-b border-slate-700">
-                            {Object.entries(TEMPLATES).map(([key, val]) => (
-                                <button key={val} onClick={() => setActiveTemplate(val)}
-                                    className={`p-2 rounded text-[9px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'} col-span-2 md:col-span-1`}
-                                >
-                                    {key.replace('_', ' ')}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
-                            
-                            {/* SECCIÓN FONDO GLOBAL Y HERRAMIENTAS DE IMAGEN */}
-                            <div className="space-y-4 bg-slate-700/50 p-3 rounded">
-                                <label className="text-xs font-bold text-slate-400 uppercase">Fondo de Gráfica</label>
-                                
-                                <div className="grid grid-cols-3 gap-2">
-                                    <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">
-                                        <Upload size={14} /> PC/MÓVIL
-                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                    </label>
-                                    <button onClick={handlePasteButton} className="bg-slate-600 hover:bg-slate-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">
-                                        <ClipboardPaste size={14} /> PEGAR
-                                    </button>
-                                    <button onClick={handleUrlInput} className="bg-slate-600 hover:bg-slate-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">
-                                        {loading ? '...' : <><LinkIcon size={14} /> URL</>}
-                                    </button>
-                                </div>
-
-                                {/* FILTROS DE IMAGEN NUEVOS */}
-                                {image && (
-                                    <div className="bg-slate-800 p-2 rounded border border-slate-600 mt-2">
-                                        <label className="text-[10px] font-bold text-slate-400 mb-1 block">Filtros de Imagen Base</label>
-                                        <div className="grid grid-cols-5 gap-1">
-                                            <button onClick={() => setImageFilter('')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === '' ? 'bg-blue-600' : 'bg-slate-700'}`}>Norm</button>
-                                            <button onClick={() => setImageFilter('grayscale(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'grayscale(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>B&N</button>
-                                            <button onClick={() => setImageFilter('sepia(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'sepia(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Sepia</button>
-                                            <button onClick={() => setImageFilter('brightness(0.5)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'brightness(0.5)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Oscuro</button>
-                                            <button onClick={() => setImageFilter('contrast(1.5) saturate(1.2)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter.includes('contrast') ? 'bg-blue-600' : 'bg-slate-700'}`}>Vivo</button>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-4 mt-3">
-                                            <span className="text-[10px] font-bold text-slate-400 w-16">AJUSTE</span>
-                                            <button onClick={() => handleInputChange('imageFit', data.imageFit === 'cover' ? 'contain' : 'cover')} className="bg-slate-700 p-1 text-[10px] rounded flex-1 font-bold">
-                                                {data.imageFit === 'cover' ? 'RELLENAR (AUTO-RECORTE)' : 'VER COMPLETA (SIN RECORTE)'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* OVERLAYS ESPECÍFICOS PARA HOY JUEGA / RESULTADO LPF */}
-                                {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
-                                    <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600 mt-2">
-                                        <label className="text-[10px] font-bold text-blue-300">Filtro Transparente Sobre Imagen</label>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleInputChange('hjOverlayUrl', '')} className={`flex-1 p-1 text-[10px] rounded font-bold ${!data.hjOverlayUrl ? 'bg-blue-600' : 'bg-slate-700'}`}>NINGUNO</button>
-                                            <button onClick={() => handleInputChange('hjOverlayUrl', 'https://i.postimg.cc/X7dTHy53/Fondo-Copa-Argentina.png')} className={`flex-1 p-1 text-[10px] rounded font-bold ${data.hjOverlayUrl.includes('Copa-Argentina') ? 'bg-blue-600' : 'bg-slate-700'}`}>COPA ARG</button>
-                                            <button onClick={() => handleInputChange('hjOverlayUrl', 'https://i.postimg.cc/bY75tHv7/Fondo-LPF.png')} className={`flex-1 p-1 text-[10px] rounded font-bold ${data.hjOverlayUrl.includes('LPF') ? 'bg-blue-600' : 'bg-slate-700'}`}>LPF</button>
-                                        </div>
-                                        <select value={data.hjOverlayBlendMode} onChange={(e) => handleInputChange('hjOverlayBlendMode', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px] mt-1 text-center">
-                                            <option value="normal">Fusión: Normal</option>
-                                            <option value="screen">Fusión: Trama (Screen)</option>
-                                            <option value="overlay">Fusión: Superponer (Overlay)</option>
-                                            <option value="soft-light">Fusión: Luz Suave</option>
-                                            <option value="multiply">Fusión: Multiplicar</option>
-                                            <option value="lighten">Fusión: Aclarar (Lighten)</option>
-                                            <option value="color-dodge">Fusión: Sobreexponer (Color Dodge)</option>
-                                        </select>
-                                    </div>
-                                )}
-                                
-                                {/* Opciones Globales */}
-                                <div className="flex flex-col gap-2 bg-slate-800 p-2 rounded border border-slate-600 mt-2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => handleInputChange('blueOverlay', !data.blueOverlay)}>
-                                                {data.blueOverlay ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
-                                            </button>
-                                            <label className="text-xs font-bold text-slate-300">Aplicar Filtro Azul Oscuro</label>
-                                        </div>
-                                        <PaletteIcon size={16} className={data.blueOverlay ? "text-blue-400" : "text-slate-600"}/>
-                                    </div>
-                                    <div className="w-full h-[1px] bg-slate-700"></div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={() => handleInputChange('useBold', !data.useBold)}>
-                                                {data.useBold ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
-                                            </button>
-                                            <label className="text-xs font-bold text-slate-300">Textos en Negrita</label>
-                                        </div>
-                                        <Type size={16} className={data.useBold ? "text-blue-400" : "text-slate-600"}/>
-                                    </div>
-                                </div>
-                                
-                                {/* SLIDERS DE POSICIÓN / ZOOM */}
-                                {image && (
-                                    <div className="bg-slate-800 p-4 rounded flex flex-col gap-4 border border-slate-600 mt-4">
-                                        <label className="text-xs text-blue-400 text-center font-bold uppercase">Ajuste de Imagen (Manual)</label>
-                                        
-                                        <div className="flex items-center gap-4">
-                                            <ZoomIn size={16} className="text-slate-400 flex-none"/>
-                                            <input 
-                                                type="range" min="0.1" max="3" step="0.05" 
-                                                value={imageScale} onChange={(e) => setImageScale(parseFloat(e.target.value))}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-[10px] font-bold text-slate-400 w-4">X</span>
-                                            <input 
-                                                type="range" min="-1500" max="1500" step="10" 
-                                                value={imagePos.x} onChange={(e) => setImagePos({...imagePos, x: parseFloat(e.target.value)})}
-                                                className="w-full"
-                                            />
-                                        </div>
-
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-[10px] font-bold text-slate-400 w-4">Y</span>
-                                            <input 
-                                                type="range" min="-1500" max="1500" step="10" 
-                                                value={imagePos.y} onChange={(e) => setImagePos({...imagePos, y: parseFloat(e.target.value)})}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+                    {!isPreviewMode && (
+                        <div className="w-full md:w-[450px] bg-slate-800 border-r border-slate-700 flex flex-col h-screen z-50 shadow-xl relative">
+                            <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                                <h1 className="text-xl font-bold text-blue-400 flex items-center gap-2"><Layout size={20}/> EDITOR</h1>
                             </div>
 
-                            {activeTemplate === TEMPLATES.ESTADISTICAS && (
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-600">
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-xs font-bold text-slate-300">Alineación Info:</label>
-                                        </div>
-                                        <button onClick={toggleAlign} className="flex items-center gap-2 bg-slate-700 px-3 py-1 rounded text-xs text-blue-400 font-bold hover:bg-slate-600 transition-colors">
-                                            {getAlignIcon()} {data.statsAlign.toUpperCase()}
-                                        </button>
+                            <div className="p-2 grid grid-cols-4 gap-1 border-b border-slate-700">
+                                {Object.entries(TEMPLATES).map(([key, val]) => (
+                                    <button key={val} onClick={() => setActiveTemplate(val)} className={`p-2 rounded text-[9px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'} col-span-2 md:col-span-1`}>
+                                        {key.replace('_', ' ')}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
+                                <div className="space-y-4 bg-slate-700/50 p-3 rounded">
+                                    <label className="text-xs font-bold text-slate-400 uppercase">Fondo de Gráfica</label>
+
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">
+                                            <Upload size={14} /> PC/MÓVIL
+                                            <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                        </label>
+                                        <button onClick={handlePasteButton} className="bg-slate-600 hover:bg-slate-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold"><ClipboardPaste size={14} /> PEGAR</button>
+                                        <button onClick={handleUrlInput} className="bg-slate-600 hover:bg-slate-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">{loading ? '...' : <><LinkIcon size={14} /> URL</>}</button>
                                     </div>
-                                    <div className="flex items-center gap-2 bg-slate-800 p-2 rounded">
-                                        <button onClick={() => handleInputChange('statsShowMain', !data.statsShowMain)}>
-                                            {data.statsShowMain ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
-                                        </button>
-                                        <label className="text-xs text-slate-300">Mostrar Dato Principal</label>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-slate-800 p-2 rounded">
-                                        <button onClick={() => handleInputChange('statsHighlightFirst', !data.statsHighlightFirst)}>
-                                            {data.statsHighlightFirst ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
-                                        </button>
-                                        <label className="text-xs text-slate-300">Destacar Primer Dato</label>
-                                    </div>
-                                    <input type="text" value={data.statsTitle} onChange={(e) => handleInputChange('statsTitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm font-bold" placeholder="Título" />
-                                    <input type="text" value={data.statsSubtitle} onChange={(e) => handleInputChange('statsSubtitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm" placeholder="Subtítulo" />
-                                    {data.statsShowMain && (
-                                        <div className="flex gap-2">
-                                            <input type="text" value={data.statsBigNumber} onChange={(e) => handleInputChange('statsBigNumber', e.target.value)} className="w-1/3 bg-slate-900 border border-slate-600 p-2 rounded text-center text-xl font-bold font-talleres" />
-                                            <input type="text" value={data.statsBigLabel} onChange={(e) => handleInputChange('statsBigLabel', e.target.value)} className="w-2/3 bg-slate-900 border border-slate-600 p-2 rounded text-sm" />
+
+                                    {image && (
+                                        <div className="bg-slate-800 p-2 rounded border border-slate-600 mt-2">
+                                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">Filtros de Imagen Base</label>
+                                            <div className="grid grid-cols-5 gap-1">
+                                                <button onClick={() => setImageFilter('')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === '' ? 'bg-blue-600' : 'bg-slate-700'}`}>Norm</button>
+                                                <button onClick={() => setImageFilter('grayscale(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'grayscale(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>B&N</button>
+                                                <button onClick={() => setImageFilter('sepia(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'sepia(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Sepia</button>
+                                                <button onClick={() => setImageFilter('brightness(0.5)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'brightness(0.5)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Oscuro</button>
+                                                <button onClick={() => setImageFilter('contrast(1.5) saturate(1.2)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter.includes('contrast') ? 'bg-blue-600' : 'bg-slate-700'}`}>Vivo</button>
+                                            </div>
+
+                                            <div className="flex items-center gap-4 mt-3">
+                                                <span className="text-[10px] font-bold text-slate-400 w-16">AJUSTE</span>
+                                                <button onClick={() => setImageFit(imageFit === 'cover' ? 'contain' : 'cover')} className="bg-slate-700 p-1 text-[10px] rounded flex-1 font-bold">
+                                                    {imageFit === 'cover' ? 'RELLENAR (AUTO-RECORTE)' : 'VER COMPLETA (SIN RECORTE)'}
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 flex justify-between">CATEGORÍAS <button onClick={addStat} className="text-green-400"><Plus size={14}/></button></label>
-                                        {data.statsList.map((stat, i) => (
-                                            <div key={i} className="flex gap-2 items-center">
-                                                <input value={stat.value} onChange={(e) => handleStatChange(i, 'value', e.target.value)} className="w-16 bg-slate-900 p-1 rounded text-center text-sm font-talleres" />
-                                                <input value={stat.label} onChange={(e) => handleStatChange(i, 'label', e.target.value)} className="flex-1 bg-slate-900 p-1 rounded text-sm" />
-                                                <button onClick={() => removeStat(i)} className="text-red-400 hover:text-red-300"><Trash2 size={14}/></button>
+
+                                    {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
+                                        <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600 mt-2">
+                                            <label className="text-[10px] font-bold text-blue-300">Filtro Transparente Sobre Imagen</label>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleInputChange('hjOverlayUrl', '')} className={`flex-1 p-1 text-[10px] rounded font-bold ${!data.hjOverlayUrl ? 'bg-blue-600' : 'bg-slate-700'}`}>NINGUNO</button>
+                                                <button onClick={() => handleInputChange('hjOverlayUrl', 'https://i.postimg.cc/X7dTHy53/Fondo-Copa-Argentina.png')} className={`flex-1 p-1 text-[10px] rounded font-bold ${data.hjOverlayUrl.includes('Copa-Argentina') ? 'bg-blue-600' : 'bg-slate-700'}`}>COPA ARG</button>
+                                                <button onClick={() => handleInputChange('hjOverlayUrl', 'https://i.postimg.cc/bY75tHv7/Fondo-LPF.png')} className={`flex-1 p-1 text-[10px] rounded font-bold ${data.hjOverlayUrl.includes('LPF') ? 'bg-blue-600' : 'bg-slate-700'}`}>LPF</button>
                                             </div>
-                                        ))}
+                                            <select value={data.hjOverlayBlendMode} onChange={(e) => handleInputChange('hjOverlayBlendMode', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px] mt-1 text-center">
+                                                {BLEND_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-col gap-2 bg-slate-800 p-2 rounded border border-slate-600 mt-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleInputChange('blueOverlay', !data.blueOverlay)}>{data.blueOverlay ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button>
+                                                <label className="text-xs font-bold text-slate-300">Aplicar Filtro Azul Oscuro</label>
+                                            </div>
+                                            <PaletteIcon size={16} className={data.blueOverlay ? 'text-blue-400' : 'text-slate-600'}/>
+                                        </div>
+                                        <div className="w-full h-[1px] bg-slate-700"></div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleInputChange('useBold', !data.useBold)}>{data.useBold ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button>
+                                                <label className="text-xs font-bold text-slate-300">Textos en Negrita</label>
+                                            </div>
+                                            <Type size={16} className={data.useBold ? 'text-blue-400' : 'text-slate-600'}/>
+                                        </div>
                                     </div>
+
+                                    {image && (
+                                        <div className="bg-slate-800 p-4 rounded flex flex-col gap-4 border border-slate-600 mt-4">
+                                            <label className="text-xs text-blue-400 text-center font-bold uppercase">Ajuste de Imagen (Manual)</label>
+                                            <div className="flex items-center gap-4"><ZoomIn size={16} className="text-slate-400 flex-none"/><input type="range" min="0.1" max="3" step="0.05" value={imageScale} onChange={(e) => setImageScale(parseFloat(e.target.value))} className="w-full" /></div>
+                                            <div className="flex items-center gap-4"><span className="text-[10px] font-bold text-slate-400 w-4">X</span><input type="range" min="-1500" max="1500" step="10" value={imagePos.x} onChange={(e) => setImagePos({...imagePos, x: parseFloat(e.target.value)})} className="w-full" /></div>
+                                            <div className="flex items-center gap-4"><span className="text-[10px] font-bold text-slate-400 w-4">Y</span><input type="range" min="-1500" max="1500" step="10" value={imagePos.y} onChange={(e) => setImagePos({...imagePos, y: parseFloat(e.target.value)})} className="w-full" /></div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
 
-                            {(activeTemplate === TEMPLATES.CONVOCADOS || activeTemplate === TEMPLATES.FORMACION) && (
-                                <div className="space-y-4">
-                                    <div className="bg-slate-700/30 p-2 rounded space-y-2 border border-slate-600">
-                                        <label className="text-xs font-bold text-blue-300">INFO DEL PARTIDO</label>
-                                        <div className="flex gap-2">
-                                            <input type="date" value={data.matchDate} onChange={(e) => handleInputChange('matchDate', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs" />
-                                            <input type="time" value={data.matchTime} onChange={(e) => handleInputChange('matchTime', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs" />
+                                {activeTemplate === TEMPLATES.ESTADISTICAS && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-600">
+                                            <div className="flex items-center gap-2"><label className="text-xs font-bold text-slate-300">Alineación Info:</label></div>
+                                            <button onClick={toggleAlign} className="flex items-center gap-2 bg-slate-700 px-3 py-1 rounded text-xs text-blue-400 font-bold hover:bg-slate-600 transition-colors">{getAlignIcon()} {data.statsAlign.toUpperCase()}</button>
                                         </div>
-                                        <input type="text" value={data.matchStadium} onChange={(e) => handleInputChange('matchStadium', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs" placeholder="Estadio (Ej: KEMPES)" />
-                                        
-                                        {activeTemplate === TEMPLATES.CONVOCADOS && (
-                                            <input type="text" value={data.rivalName} onChange={(e) => handleInputChange('rivalName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs mt-2" placeholder="Nombre Rival" />
+                                        <div className="flex items-center gap-2 bg-slate-800 p-2 rounded"><button onClick={() => handleInputChange('statsShowMain', !data.statsShowMain)}>{data.statsShowMain ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs text-slate-300">Mostrar Dato Principal</label></div>
+                                        <div className="flex items-center gap-2 bg-slate-800 p-2 rounded"><button onClick={() => handleInputChange('statsHighlightFirst', !data.statsHighlightFirst)}>{data.statsHighlightFirst ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs text-slate-300">Destacar Primer Dato</label></div>
+                                        <input type="text" value={data.statsTitle} onChange={(e) => handleInputChange('statsTitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm font-bold" placeholder="Título" />
+                                        <input type="text" value={data.statsSubtitle} onChange={(e) => handleInputChange('statsSubtitle', e.target.value)} className="w-full bg-slate-900 border border-slate-600 p-2 rounded text-sm" placeholder="Subtítulo" />
+                                        {data.statsShowMain && (
+                                            <div className="flex gap-2">
+                                                <input type="text" value={data.statsBigNumber} onChange={(e) => handleInputChange('statsBigNumber', e.target.value)} className="w-1/3 bg-slate-900 border border-slate-600 p-2 rounded text-center text-xl font-bold font-talleres" />
+                                                <input type="text" value={data.statsBigLabel} onChange={(e) => handleInputChange('statsBigLabel', e.target.value)} className="w-2/3 bg-slate-900 border border-slate-600 p-2 rounded text-sm" />
+                                            </div>
                                         )}
-                                        <input type="text" value={data.dtName} onChange={(e) => handleInputChange('dtName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs mt-2" placeholder="Nombre DT" />
-                                    </div>
-
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="text-xs font-bold text-slate-400">SELECCIONAR JUGADORES</label>
-                                            <span className="text-[10px] text-slate-500">{roster.filter(p=>p.selected).length} Sel.</span>
-                                        </div>
-                                        <div className="h-60 overflow-y-auto bg-slate-900 rounded p-2 custom-scrollbar">
-                                            {roster.map((p, i) => (
-                                                <div key={i} className="flex items-center gap-2 mb-1 hover:bg-slate-800 p-1 rounded">
-                                                    <button onClick={() => togglePlayer(i, activeTemplate === TEMPLATES.FORMACION)}>
-                                                        {p.selected ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} className="text-slate-600" />}
-                                                    </button>
-                                                    <input type="text" value={p.number} onChange={(e) => updatePlayerNumber(i, e.target.value)} className="w-8 bg-black text-center text-xs p-1 rounded text-blue-300 border-none font-talleres" />
-                                                    <div className="flex-1">
-                                                        <p className="text-xs font-bold text-white leading-none">{p.name}</p>
-                                                        <p className="text-[10px] text-slate-500 leading-none mt-1">{p.pos}</p>
-                                                    </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-400 flex justify-between">CATEGORÍAS <button onClick={addStat} className="text-green-400"><Plus size={14}/></button></label>
+                                            {data.statsList.map((stat, i) => (
+                                                <div key={i} className="flex gap-2 items-center">
+                                                    <input value={stat.value} onChange={(e) => handleStatChange(i, 'value', e.target.value)} className="w-16 bg-slate-900 p-1 rounded text-center text-sm font-talleres" />
+                                                    <input value={stat.label} onChange={(e) => handleStatChange(i, 'label', e.target.value)} className="flex-1 bg-slate-900 p-1 rounded text-sm" />
+                                                    <button onClick={() => removeStat(i)} className="text-red-400 hover:text-red-300"><Trash2 size={14}/></button>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
+                                )}
 
-                                    {activeTemplate === TEMPLATES.FORMACION && (
+                                {(activeTemplate === TEMPLATES.CONVOCADOS || activeTemplate === TEMPLATES.FORMACION) && (
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-700/30 p-2 rounded space-y-2 border border-slate-600">
+                                            <label className="text-xs font-bold text-blue-300">INFO DEL PARTIDO</label>
+                                            <div className="flex gap-2">
+                                                <input type="date" value={data.matchDate} onChange={(e) => handleInputChange('matchDate', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs" />
+                                                <input type="time" value={data.matchTime} onChange={(e) => handleInputChange('matchTime', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs" />
+                                            </div>
+                                            <input type="text" value={data.matchStadium} onChange={(e) => handleInputChange('matchStadium', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs" placeholder="Estadio (Ej: KEMPES)" />
+                                            {activeTemplate === TEMPLATES.CONVOCADOS && <input type="text" value={data.rivalName} onChange={(e) => handleInputChange('rivalName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs mt-2" placeholder="Nombre Rival" />}
+                                            <input type="text" value={data.dtName} onChange={(e) => handleInputChange('dtName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs mt-2" placeholder="Nombre DT" />
+                                        </div>
+
                                         <div>
-                                            <label className="text-xs font-bold text-slate-400 mb-2 block">ORDENAR FORMACIÓN (Arrastrar)</label>
-                                            <div className="space-y-1 bg-slate-900 p-2 rounded">
-                                                {data.formationList.map((p, i) => (
-                                                    <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, i)}
-                                                        className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-move hover:bg-slate-700 transition-colors"
-                                                    >
-                                                        <GripVertical size={14} className="text-slate-500"/>
-                                                        <span className="text-xs font-bold text-blue-400 w-6 font-talleres">{p.number}</span>
-                                                        <span className="text-xs text-white">{p.name}</span>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <label className="text-xs font-bold text-slate-400">SELECCIONAR JUGADORES</label>
+                                                <span className="text-[10px] text-slate-500">{roster.filter(p => p.selected).length} Sel.</span>
+                                            </div>
+                                            <div className="h-60 overflow-y-auto bg-slate-900 rounded p-2 custom-scrollbar">
+                                                {roster.map((p, i) => (
+                                                    <div key={i} className="flex items-center gap-2 mb-1 hover:bg-slate-800 p-1 rounded">
+                                                        <button onClick={() => togglePlayer(i, activeTemplate === TEMPLATES.FORMACION)}>{p.selected ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} className="text-slate-600" />}</button>
+                                                        <input type="text" value={p.number} onChange={(e) => updatePlayerNumber(i, e.target.value)} className="w-8 bg-black text-center text-xs p-1 rounded text-blue-300 border-none font-talleres" />
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-bold text-white leading-none">{p.name}</p>
+                                                            <p className="text-[10px] text-slate-500 leading-none mt-1">{p.pos}</p>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            )}
 
-                            {activeTemplate === TEMPLATES.NOTICIA_ESPECIAL && (
-                                <div className="space-y-4">
-                                    <input type="text" value={data.specialTitle} onChange={(e) => handleInputChange('specialTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="TÍTULO GRANDE" />
-                                    <textarea value={data.specialBody} onChange={(e) => handleInputChange('specialBody', e.target.value)} className="w-full h-64 bg-slate-900 p-2 rounded text-xs" placeholder="Escribe la noticia aquí..." />
-                                </div>
-                            )}
-
-                            {activeTemplate === TEMPLATES.NOTICIA_COMUN && (
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <button onClick={() => handleInputChange('newsShowTag', !data.newsShowTag)}>
-                                            {data.newsShowTag ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}
-                                        </button>
-                                        <label className="text-xs text-slate-300">Mostrar Etiqueta</label>
-                                    </div>
-                                    {data.newsShowTag && (
-                                        <div className="flex gap-2">
-                                            <input type="text" value={data.newsTag} onChange={(e) => handleInputChange('newsTag', e.target.value)} className="flex-1 bg-slate-900 p-2 rounded text-sm text-center" placeholder="ETIQUETA" />
-                                            <input type="color" value={data.newsTagColor} onChange={(e) => handleInputChange('newsTagColor', e.target.value)} className="w-10 h-full rounded cursor-pointer border-none bg-transparent" />
-                                        </div>
-                                    )}
-                                    <input type="text" value={data.newsTitle} onChange={(e) => handleInputChange('newsTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold text-blue-300" placeholder="TITULAR" />
-                                    <textarea value={data.newsSubtitle} onChange={(e) => handleInputChange('newsSubtitle', e.target.value)} className="w-full h-32 bg-slate-900 p-2 rounded text-sm" placeholder="Bajada de la noticia..." />
-                                </div>
-                            )}
-
-                            {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
-                                <div className="space-y-6">
-                                    {/* TEXTOS EDITABLES HOY JUEGA */}
-                                    {activeTemplate === TEMPLATES.HOY_JUEGA && (
-                                        <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600 mb-4">
-                                            <label className="text-[10px] font-bold text-blue-300">TEXTOS (HOY JUEGA)</label>
-                                            
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <input type="text" value={data.hjTextLine1} onChange={(e) => handleInputChange('hjTextLine1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" />
-                                                <input type="color" value={data.hjTextColor1} onChange={(e) => handleInputChange('hjTextColor1', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" />
-                                                <button onClick={() => handleInputChange('hjTextHollow1', !data.hjTextHollow1)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">
-                                                    {data.hjTextHollow1 ? 'HUECO' : 'SÓLIDO'}
-                                                </button>
-                                            </div>
-
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <input type="text" value={data.hjTextLine2} onChange={(e) => handleInputChange('hjTextLine2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" />
-                                                <input type="color" value={data.hjTextColor2} onChange={(e) => handleInputChange('hjTextColor2', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" />
-                                            </div>
-                                            
-                                            <label className="text-[10px] font-bold text-blue-300 mt-2 block">Fusión del Texto con el Fondo</label>
-                                            <select value={data.hjTextBlendMode} onChange={(e) => handleInputChange('hjTextBlendMode', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">
-                                                <option value="normal">Normal</option>
-                                                <option value="overlay">Superponer (Overlay)</option>
-                                                <option value="soft-light">Luz Suave (Soft Light)</option>
-                                                <option value="multiply">Multiplicar (Multiply)</option>
-                                                <option value="screen">Trama (Screen)</option>
-                                                <option value="lighten">Aclarar (Lighten)</option>
-                                                <option value="color-dodge">Sobreexponer (Color Dodge)</option>
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    <div className="bg-slate-700/30 p-2 rounded space-y-2 mb-4 border border-slate-600">
-                                        <label className="text-xs font-bold text-blue-300">Posición de Escudos/Cinta</label>
-                                        <div className="flex gap-2">
-                                            <select value={data.hjLogosPosX} onChange={(e) => handleInputChange('hjLogosPosX', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs text-center font-bold">
-                                                <option value="right">Derecha</option>
-                                                <option value="left">Izquierda</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600">
-                                        <label className="text-xs font-bold text-slate-400 flex justify-between items-center">
-                                            INFO CENTRAL <Trophy size={12}/>
-                                        </label>
-                                        
-                                        <select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTournamentChange(e.target.value)}>
-                                            <option value="">Cambiar Torneo...</option>
-                                            {LEAGUES_DB.map((l, i) => <option key={i} value={l.url}>{l.name}</option>)}
-                                        </select>
-                                        
-                                        {activeTemplate === TEMPLATES.RESULTADO_FINAL && (
-                                            <div className="flex gap-2 mt-2">
-                                                <input type="text" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 1" />
-                                                <input type="text" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 2" />
+                                        {activeTemplate === TEMPLATES.FORMACION && (
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-400 mb-2 block">ORDENAR FORMACIÓN (Arrastrar)</label>
+                                                <div className="space-y-1 bg-slate-900 p-2 rounded">
+                                                    {data.formationList.map((p, i) => (
+                                                        <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, i)} className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-move hover:bg-slate-700 transition-colors">
+                                                            <GripVertical size={14} className="text-slate-500"/>
+                                                            <span className="text-xs font-bold text-blue-400 w-6 font-talleres">{p.number}</span>
+                                                            <span className="text-xs text-white">{p.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
+                                )}
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-slate-700/30 p-2 rounded space-y-2">
-                                            <label className="text-[10px] font-bold text-blue-300 uppercase">EQUIPO 1 {activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL ? '(ARRIBA)' : ''}</label>
-                                            <select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTeamChange(1, e.target.value)}>
-                                                <option value="">Cambiar Escudo...</option>
-                                                {TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
-                                            </select>
-                                            
-                                            <div className="flex items-center justify-between gap-1 mt-1">
-                                                <span className="text-[9px]">Grad:</span>
-                                                <input type="color" value={data.resColor1A} onChange={(e) => handleInputChange('resColor1A', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Superior" />
-                                                <input type="color" value={data.resColor1B} onChange={(e) => handleInputChange('resColor1B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" />
-                                                <input type="color" value={data.resColor1C} onChange={(e) => handleInputChange('resColor1C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" />
+                                {activeTemplate === TEMPLATES.NOTICIA_ESPECIAL && (
+                                    <div className="space-y-4">
+                                        <input type="text" value={data.specialTitle} onChange={(e) => handleInputChange('specialTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="TÍTULO GRANDE" />
+                                        <textarea value={data.specialBody} onChange={(e) => handleInputChange('specialBody', e.target.value)} className="w-full h-64 bg-slate-900 p-2 rounded text-xs" placeholder="Escribe la noticia aquí..." />
+                                    </div>
+                                )}
+
+                                {activeTemplate === TEMPLATES.NOTICIA_COMUN && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-2 mb-2"><button onClick={() => handleInputChange('newsShowTag', !data.newsShowTag)}>{data.newsShowTag ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs text-slate-300">Mostrar Etiqueta</label></div>
+                                        {data.newsShowTag && (
+                                            <div className="flex gap-2">
+                                                <input type="text" value={data.newsTag} onChange={(e) => handleInputChange('newsTag', e.target.value)} className="flex-1 bg-slate-900 p-2 rounded text-sm text-center" placeholder="ETIQUETA" />
+                                                <input type="color" value={data.newsTagColor} onChange={(e) => handleInputChange('newsTagColor', e.target.value)} className="w-10 h-full rounded cursor-pointer border-none bg-transparent" />
                                             </div>
-                                            
-                                            {activeTemplate !== TEMPLATES.HOY_JUEGA && (
-                                                <input type="text" value={data.resTeam1Name} onChange={(e) => handleInputChange('resTeam1Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />
+                                        )}
+                                        <input type="text" value={data.newsTitle} onChange={(e) => handleInputChange('newsTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold text-blue-300" placeholder="TITULAR" />
+                                        <textarea value={data.newsSubtitle} onChange={(e) => handleInputChange('newsSubtitle', e.target.value)} className="w-full h-32 bg-slate-900 p-2 rounded text-sm" placeholder="Bajada de la noticia..." />
+                                    </div>
+                                )}
+
+                                {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
+                                    <div className="space-y-6">
+                                        {activeTemplate === TEMPLATES.HOY_JUEGA && (
+                                            <div className="bg-slate-800 p-2 rounded space-y-3 border border-slate-600 mb-4">
+                                                <label className="text-[10px] font-bold text-blue-300">TEXTOS (HOY JUEGA)</label>
+
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <input type="text" value={data.hjTextLine1} onChange={(e) => handleInputChange('hjTextLine1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" />
+                                                    <input type="color" value={data.hjTextColor1} onChange={(e) => handleInputChange('hjTextColor1', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" />
+                                                    <button onClick={() => handleInputChange('hjTextHollow1', !data.hjTextHollow1)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">{data.hjTextHollow1 ? 'HUECO' : 'SÓLIDO'}</button>
+                                                </div>
+                                                <select value={data.hjTextBlendMode1} onChange={(e) => handleInputChange('hjTextBlendMode1', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">
+                                                    {BLEND_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>Fusión HOY JUEGA: {opt.label}</option>)}
+                                                </select>
+
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <input type="text" value={data.hjTextLine2} onChange={(e) => handleInputChange('hjTextLine2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" />
+                                                    <input type="color" value={data.hjTextColor2} onChange={(e) => handleInputChange('hjTextColor2', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" />
+                                                </div>
+                                                <select value={data.hjTextBlendMode2} onChange={(e) => handleInputChange('hjTextBlendMode2', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">
+                                                    {BLEND_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>Fusión TALLERES: {opt.label}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        <div className="bg-slate-700/30 p-2 rounded space-y-2 mb-4 border border-slate-600">
+                                            <label className="text-xs font-bold text-blue-300">Posición de Escudos/Cinta</label>
+                                            <div className="flex gap-2">
+                                                <select value={data.hjLogosPosX} onChange={(e) => handleInputChange('hjLogosPosX', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs text-center font-bold">
+                                                    <option value="right">Derecha</option>
+                                                    <option value="left">Izquierda</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600">
+                                            <label className="text-xs font-bold text-slate-400 flex justify-between items-center">INFO CENTRAL <Trophy size={12}/></label>
+                                            <select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTournamentChange(e.target.value)}>
+                                                <option value="">Cambiar Torneo...</option>
+                                                {LEAGUES_DB.map((l, i) => <option key={i} value={l.url}>{l.name}</option>)}
+                                            </select>
+                                            {activeTemplate === TEMPLATES.RESULTADO_FINAL && (
+                                                <div className="flex gap-2 mt-2">
+                                                    <input type="text" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 1" />
+                                                    <input type="text" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 2" />
+                                                </div>
                                             )}
                                         </div>
 
-                                        <div className="bg-slate-700/30 p-2 rounded space-y-2">
-                                            <label className="text-[10px] font-bold text-red-300 uppercase">EQUIPO 2 {activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL ? '(ABAJO)' : ''}</label>
-                                            <select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTeamChange(2, e.target.value)}>
-                                                <option value="">Cambiar Escudo...</option>
-                                                {TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
-                                            </select>
-                                            
-                                            <div className="flex items-center justify-between gap-1 mt-1">
-                                                <span className="text-[9px]">Grad:</span>
-                                                <input type="color" value={data.resColor2A} onChange={(e) => handleInputChange('resColor2A', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Superior" />
-                                                <input type="color" value={data.resColor2B} onChange={(e) => handleInputChange('resColor2B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" />
-                                                <input type="color" value={data.resColor2C} onChange={(e) => handleInputChange('resColor2C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-slate-700/30 p-2 rounded space-y-2">
+                                                <label className="text-[10px] font-bold text-blue-300 uppercase">EQUIPO 1 {activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL ? '(ARRIBA)' : ''}</label>
+                                                <select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTeamChange(1, e.target.value)}>
+                                                    <option value="">Cambiar Escudo...</option>
+                                                    {TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
+                                                </select>
+                                                <div className="flex items-center justify-between gap-1 mt-1">
+                                                    <span className="text-[9px]">Grad:</span>
+                                                    <input type="color" value={data.resColor1A} onChange={(e) => handleInputChange('resColor1A', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Superior" />
+                                                    <input type="color" value={data.resColor1B} onChange={(e) => handleInputChange('resColor1B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" />
+                                                    <input type="color" value={data.resColor1C} onChange={(e) => handleInputChange('resColor1C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" />
+                                                </div>
+                                                {activeTemplate !== TEMPLATES.HOY_JUEGA && <input type="text" value={data.resTeam1Name} onChange={(e) => handleInputChange('resTeam1Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />}
                                             </div>
 
-                                            {activeTemplate !== TEMPLATES.HOY_JUEGA && (
-                                                <input type="text" value={data.resTeam2Name} onChange={(e) => handleInputChange('resTeam2Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />
-                                            )}
+                                            <div className="bg-slate-700/30 p-2 rounded space-y-2">
+                                                <label className="text-[10px] font-bold text-red-300 uppercase">EQUIPO 2 {activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL ? '(ABAJO)' : ''}</label>
+                                                <select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTeamChange(2, e.target.value)}>
+                                                    <option value="">Cambiar Escudo...</option>
+                                                    {TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}
+                                                </select>
+                                                <div className="flex items-center justify-between gap-1 mt-1">
+                                                    <span className="text-[9px]">Grad:</span>
+                                                    <input type="color" value={data.resColor2A} onChange={(e) => handleInputChange('resColor2A', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Superior" />
+                                                    <input type="color" value={data.resColor2B} onChange={(e) => handleInputChange('resColor2B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" />
+                                                    <input type="color" value={data.resColor2C} onChange={(e) => handleInputChange('resColor2C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" />
+                                                </div>
+                                                {activeTemplate !== TEMPLATES.HOY_JUEGA && <input type="text" value={data.resTeam2Name} onChange={(e) => handleInputChange('resTeam2Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
+                    )}
+
+                    <div ref={containerRef} className={`flex-1 flex items-center justify-center relative transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50 bg-black' : 'bg-slate-950/50 p-4'}`} onPaste={handleGlobalPaste} tabIndex="0">
+                        <div className="absolute top-4 right-4 z-50 flex gap-2">
+                            <button onClick={() => setIsPreviewMode(!isPreviewMode)} className="bg-black/50 hover:bg-blue-600 text-white p-3 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/20">
+                                {isPreviewMode ? <Minimize2 size={24} /> : <Eye size={24} />}
+                            </button>
+                        </div>
+
+                        <div ref={wrapperRef} style={{ transform: isPreviewMode ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.95})` : `scale(${previewScale})`, transformOrigin: 'center' }} className="shadow-2xl">
+                            <div ref={canvasRef} style={{ width: '1080px', height: '1350px', backgroundColor: THEME.bg }} className="overflow-hidden shadow-2xl relative bg-[#021024]">
+                                {renderActiveTemplate()}
+                            </div>
+                        </div>
+
+                        {!isPreviewMode && (
+                            <button onClick={handleDownload} disabled={loading} className="absolute bottom-6 right-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 z-30 transition-transform hover:scale-105 active:scale-95">
+                                {loading ? 'PROCESANDO...' : <><Download size={20} /> DESCARGAR HD</>}
+                            </button>
+                        )}
+
+                        {isPreviewMode && (
+                            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-50">
+                                <button onClick={handleDownload} disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-full font-bold shadow-2xl flex items-center gap-3 transition-transform hover:scale-105 active:scale-95 border-2 border-white/20">
+                                    {loading ? 'GENERANDO...' : <><Save size={24} /> GUARDAR IMAGEN</>}
+                                </button>
+                            </div>
+                        )}
                     </div>
-                  )}
-
-                  {/* VISOR Y CAPTURA */}
-                  <div 
-                    className={`flex-1 flex items-center justify-center relative transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50 bg-black' : 'bg-slate-950/50 p-4'}`} 
-                    onPaste={handleGlobalPaste} 
-                    tabIndex="0"
-                  >
-                     
-                     <div className="absolute top-4 right-4 z-50 flex gap-2">
-                         <button 
-                            onClick={() => setIsPreviewMode(!isPreviewMode)} 
-                            className="bg-black/50 hover:bg-blue-600 text-white p-3 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/20"
-                         >
-                            {isPreviewMode ? <Minimize2 size={24} /> : <Eye size={24} />}
-                         </button>
-                     </div>
-
-                     {/* Contenedor que Escala para la Vista */}
-                     <div 
-                        ref={wrapperRef}
-                        style={{ 
-                            transform: isPreviewMode ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.95})` : `scale(${previewScale})`, 
-                            transformOrigin: 'center',
-                        }} 
-                        className="shadow-2xl"
-                     >
-                        <div 
-                            ref={canvasRef} 
-                            style={{ 
-                                width: '1080px', height: '1350px', 
-                                backgroundColor: THEME.bg,
-                            }} 
-                            className="overflow-hidden shadow-2xl relative bg-[#021024]"
-                        >
-                            {renderActiveTemplate()}
-                        </div>
-                     </div>
-
-                     {!isPreviewMode && (
-                         <button onClick={handleDownload} disabled={loading} className="absolute bottom-6 right-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 z-30 transition-transform hover:scale-105 active:scale-95">
-                            {loading ? 'PROCESANDO...' : <><Download size={20} /> DESCARGAR HD</>}
-                         </button>
-                     )}
-                     
-                     {isPreviewMode && (
-                         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-50">
-                             <button onClick={handleDownload} disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-full font-bold shadow-2xl flex items-center gap-3 transition-transform hover:scale-105 active:scale-95 border-2 border-white/20">
-                                {loading ? 'GENERANDO...' : <><Save size={24} /> GUARDAR IMAGEN</>}
-                             </button>
-                         </div>
-                     )}
-                  </div>
                 </div>
             );
         };
