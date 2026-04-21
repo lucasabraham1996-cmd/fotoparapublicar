@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -171,6 +172,28 @@
             return new Blob([u8arr], { type: mime });
         };
 
+        const resizeBlobIfNeeded = async (blob, maxWidth = 960, maxHeight = 1200) => {
+            const imgUrl = URL.createObjectURL(blob);
+            try {
+                const img = await new Promise((resolve, reject) => {
+                    const instance = new Image();
+                    instance.onload = () => resolve(instance);
+                    instance.onerror = reject;
+                    instance.src = imgUrl;
+                });
+                const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+                if (ratio >= 0.999) return blob;
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * ratio);
+                canvas.height = Math.round(img.height * ratio);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                return await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.96));
+            } finally {
+                URL.revokeObjectURL(imgUrl);
+            }
+        };
+
         const downloadBlob = (blob, filename) => {
             const blobUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -239,7 +262,7 @@
             return fallbackMap[mode] || 'normal';
         };
 
-        const getBlendTextStyle = ({ mode, color, hollow = false, shadow = '0 15px 30px rgba(0,0,0,0.9)' }) => ({
+        const getBlendTextStyle = ({ mode, color, hollow = false, shadow = '0 15px 30px rgba(0,0,0,0.9)', opacity }) => ({
             display: 'inline-block',
             color: hollow ? 'transparent' : color,
             WebkitTextStroke: hollow ? `3px ${color}` : '0px transparent',
@@ -247,17 +270,56 @@
             mixBlendMode: getSafeTextBlendMode(mode),
             willChange: 'transform, opacity, filter',
             transform: 'translateZ(0)',
-            opacity: mode === 'screen' || mode === 'color-dodge' ? 0.96 : 0.99,
+            isolation: 'auto',
+            opacity: opacity ?? (mode === 'screen' || mode === 'color-dodge' ? 0.96 : 0.99),
             filter:
                 mode === 'screen' ? 'brightness(1.08)' :
                 mode === 'multiply' ? 'contrast(1.08)' :
                 mode === 'overlay' ? 'contrast(1.05) saturate(1.08)' :
                 mode === 'soft-light' ? 'saturate(1.08)' :
                 mode === 'hard-light' ? 'contrast(1.12) saturate(1.12)' :
-                mode === 'difference' ? 'contrast(1.08)' :
-                mode === 'exclusion' ? 'brightness(1.03)' :
+                mode === 'difference' ? 'contrast(1.08) invert(0.02)' :
+                mode === 'exclusion' ? 'brightness(1.06) contrast(1.04)' :
                 'none'
         });
+
+        const getBlendHalo = (mode) => (
+            mode === 'multiply' ? '0 14px 30px rgba(0,0,0,0.95)' :
+            mode === 'screen' ? '0 0 30px rgba(255,255,255,0.35), 0 14px 30px rgba(0,0,0,0.85)' :
+            mode === 'overlay' ? '0 0 20px rgba(29,78,216,0.18), 0 14px 30px rgba(0,0,0,0.9)' :
+            mode === 'soft-light' ? '0 12px 24px rgba(0,0,0,0.88)' :
+            mode === 'hard-light' ? '0 0 18px rgba(255,255,255,0.16), 0 14px 30px rgba(0,0,0,0.92)' :
+            mode === 'difference' ? '0 0 18px rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.92)' :
+            mode === 'exclusion' ? '0 0 16px rgba(255,255,255,0.10), 0 14px 30px rgba(0,0,0,0.9)' :
+            '0 15px 30px rgba(0,0,0,0.9)'
+        );
+        const getFusedTextFillStyle = ({ color, hollow = false, shadow = "0 15px 30px rgba(0,0,0,0.9)" }) => {
+            const baseStyle = {
+                display: 'inline-block',
+                textShadow: shadow,
+                transform: 'translateZ(0)',
+                opacity: 0.98
+            };
+            if (image) {
+                return {
+                    ...baseStyle,
+                    color: hollow ? 'transparent' : 'transparent',
+                    backgroundImage: `url(${image})`,
+                    backgroundSize: `${100 * imageScale}% auto`,
+                    backgroundPosition: `calc(50% + ${imagePos.x}px) calc(50% + ${imagePos.y}px)`,
+                    backgroundRepeat: 'no-repeat',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    filter: imageFilter || 'none'
+                };
+            }
+            return {
+                ...baseStyle,
+                color: hollow ? 'transparent' : color,
+                WebkitTextStroke: hollow ? `3px ${color}` : '0px transparent'
+            };
+        };
+
 
 
         const TEAMS_DB = [
@@ -268,13 +330,13 @@
             { name: 'Banfield', url: 'https://i.postimg.cc/htqt0hhm/Banfield.png' },
             { name: 'Barracas Central', url: 'https://i.postimg.cc/mgGgShhC/Barracas-Central.png' },
             { name: 'Belgrano', url: 'https://i.postimg.cc/T3X3chh9/Belgrano.png' },
-            { name: 'Boca Juniors', url: 'https://i.postimg.cc/g2P2Krrs/Boca.png' },
+            { name: 'Boca Juniors', url: 'https://i.postimg.cc/Sx65wBdg/Boca.png' },
             { name: 'Central Córdoba', url: 'https://i.postimg.cc/pLYXcxnz/Central-Cordoba.png' },
             { name: 'Colón', url: 'https://i.postimg.cc/pLYXcxnK/Colon.png' },
             { name: 'Independiente Rivadavia', url: 'https://i.postimg.cc/Hk4svH7v/CSIR.png' },
             { name: 'Defensa y Justicia', url: 'https://i.postimg.cc/K8rvpFgs/Defensa.png' },
             { name: 'Deportivo Armenio', url: 'https://i.postimg.cc/FHgsCmJD/Deportivo-Armenio.png' },
-            { name: 'Estudiantes LP', url: 'https://i.postimg.cc/Z5FKsZyg/EDLP.png' },
+            { name: 'Estudiantes LP', url: 'https://i.postimg.cc/BnTydrpM/EDLP.png' },
             { name: 'Estudiantes RC', url: 'https://i.postimg.cc/pdWVg7Dw/Estudiantes-RC.png' },
             { name: 'Ferro', url: 'https://i.postimg.cc/vmY8pjrR/f-ERRO.png' },
             { name: 'Gimnasia LP', url: 'https://i.postimg.cc/ZqbY1g8W/GELP.png' },
@@ -323,6 +385,9 @@
         const TEMPLATES = {
             HOY_JUEGA: 'hoy_juega',
             RESULTADO_FINAL: 'resultado_final',
+            JUVENILES: 'juveniles',
+            OTROS_RESULTADOS: 'otros_resultados',
+            POSICIONES: 'posiciones',
             ESTADISTICAS: 'estadisticas',
             CONVOCADOS: 'convocados',
             NOTICIA_COMUN: 'noticia_comun',
@@ -389,6 +454,9 @@
             const [data, setData] = useState({
                 useBold: true,
                 blueOverlay: false,
+                blueOverlayColor1: '#021024',
+                blueOverlayColor2: '#0b5fff',
+                blueOverlayReverse: false,
                 statsTitle: 'HISTORIAL',
                 statsSubtitle: 'VS PLATENSE',
                 statsShowMain: false,
@@ -429,15 +497,278 @@
                 hjLogosPosX: 'right',
                 hjLogosPosY: 'bottom',
                 hjOverlayUrl: '',
-                hjOverlayBlendMode: 'screen',
+                hjOverlayBlendMode: 'normal',
                 hjTextLine1: 'HOY JUEGA',
                 hjTextColor1: '#FFFFFF',
-                hjTextHollow1: true,
+                hjTextHollow1: false,
                 hjTextLine2: 'TALLERES',
                 hjTextColor2: '#FFFFFF',
+                hjTextHollow2: false,
                 hjTextBlendMode1: 'normal',
-                hjTextBlendMode2: 'overlay'
+                hjTextBlendMode2: 'normal',
+                hjArrowBlendMode: 'normal',
+                hjArrowColor: '#2563EB',
+                hjArrowUrl: '',
+                results6Title: 'JUVENILES',
+                results6Subtitle: 'Jornada 7 vs. Colón',
+                results6Badge: '#VAMOSLOSPIBES',
+                results6Bg: 'https://i.postimg.cc/TwGVLSX6/Gemini-Generated-Image-cv9tircv9tircv9t.png',
+                results6Rows: [
+                    { division: 'CUARTA DIVISIÓN', localia: 'L', team1: 'TALLERES', score: '1-1', team2: 'COLÓN', team1Logo: null, team2Logo: null },
+                    { division: 'QUINTA DIVISIÓN', localia: 'L', team1: 'TALLERES', score: '1-3', team2: 'COLÓN', team1Logo: null, team2Logo: null },
+                    { division: 'SEXTA DIVISIÓN', localia: 'L', team1: 'TALLERES', score: '3-1', team2: 'COLÓN', team1Logo: null, team2Logo: null },
+                    { division: 'SÉPTIMA DIVISIÓN', localia: 'V', team1: 'COLÓN', score: '0-2', team2: 'TALLERES', team1Logo: null, team2Logo: null },
+                    { division: 'OCTAVA DIVISIÓN', localia: 'V', team1: 'COLÓN', score: '1-1', team2: 'TALLERES', team1Logo: null, team2Logo: null },
+                    { division: 'NOVENA DIVISIÓN', localia: 'V', team1: 'COLÓN', score: '0-4', team2: 'TALLERES', team1Logo: null, team2Logo: null }
+                ],
+                othersTitle: '',
+                othersSubtitle: 'RESERVA',
+                othersComp: 'ÚLTIMO RESULTADO',
+                othersLogoWhite: false,
+                othersTournamentType: 'reserva',
+                othersTournamentLogo: null,
+                othersTeam1Name: 'TALLERES',
+                othersTeam2Name: 'GIMNASIA MENDOZA',
+                othersTeam1Logo: null,
+                othersTeam2Logo: null,
+                othersScore1: '0',
+                othersScore2: '0',
+                othersColor1: '#0F3577',
+                othersColor2: '#334155',
+                positionsMode: 'lpf',
+                positionsTitle: 'TABLA DE POSICIONES',
+                positionsSubtitle: 'LIGA PROFESIONAL',
+                positionsRows: [],
+                positionsTournamentLogo: null
             });
+
+
+            const normalizeName = (str = '') => str
+                .toString()
+                .normalize('NFD')
+                .replace(/[̀-ͯ]/g, '')
+                .replace(/[’'`´]/g, '')
+                .replace(/\([^)]*\)/g, '')
+                .replace(/[^a-zA-Z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+
+            const findTeamByName = (name = '') => {
+                const normalized = normalizeName(name);
+                const aliasMap = {
+                    'estudiantes lp': 'Estudiantes LP',
+                    'estudiantes de la plata': 'Estudiantes LP',
+                    'colon': 'Colón',
+                    'colon santa fe': 'Colón',
+                    'gimnasia y esgrima m': 'Gimnasia Mza',
+                    'gimnasia mendoza': 'Gimnasia Mza',
+                    'gimnasia y esgrima mendoza': 'Gimnasia Mza',
+                    'deportivo riestra': 'Riestra',
+                    'newells': 'Newells',
+                    'newells old boys': 'Newells',
+                    'atletico tucuman': 'Atlético Tucumán',
+                    'union santa fe': 'Unión',
+                    'union de santa fe': 'Unión',
+                    'velez sarsfield': 'Vélez',
+                    'boca': 'Boca Juniors',
+                    'rosario central': 'Rosario Central',
+                    'central cordoba sde': 'Central Córdoba',
+                    'central cordoba': 'Central Córdoba',
+                    'gimnasia lp': 'Gimnasia LP',
+                    'talleres': 'Talleres',
+                    'racing club': 'Racing',
+                    'san lorenzo': 'San Lorenzo',
+                    'sat': 'SAT',
+                    'ferro': 'Ferro',
+                    'river': 'River Plate',
+                    'river plate': 'River Plate',
+                    'banfield': 'Banfield'
+                };
+                const mapped = aliasMap[normalized] || null;
+                if (mapped) return TEAMS_DB.find(t => t.name === mapped) || null;
+                return TEAMS_DB.find(t => normalizeName(t.name) === normalized)
+                    || TEAMS_DB.find(t => normalized.includes(normalizeName(t.name)) || normalizeName(t.name).includes(normalized))
+                    || null;
+            };
+
+            const getTeamLogo = (name = '') => findTeamByName(name)?.url || null;
+
+            const CLUB_ABBR = {
+                'TALLERES': 'TAL', 'COLÓN': 'COL', 'COLON': 'COL', 'BOCA': 'BOC', 'ESTUDIANTES LP': 'EDLP', 'ESTUDIANTES': 'EDLP',
+                'HURACÁN': 'HUR', 'HURACAN': 'HUR', 'ATL. RAFAELA': 'RAF', 'ATL. TUCUMÁN': 'ATU', 'ATL. TUCUMAN': 'ATU',
+                'INDEPENDIENTE RIVADAVIA': 'IRI', 'FERRO': 'FER', 'LANÚS': 'LAN', 'LANUS': 'LAN', "NEWELL'S": 'NOB', 'SAN MARTIN SJ': 'SMSJ',
+                'ARGENTINOS JRS': 'AAAJ', 'INSTITUTO': 'INS', 'DEFENSA Y JUSTICIA': 'DYJ', 'QUILMES': 'QUI', 'RIVER PLATE': 'RIV',
+                'ROSARIO CENTRAL': 'RC', 'GODOY CRUZ': 'GOD', 'PLATENSE': 'PLA', 'BELGRANO': 'BEL', 'VÉLEZ': 'VEL', 'VELEZ': 'VEL',
+                'GIMNASIA LP': 'GLP', 'GIMNASIA (M)': 'GEM', 'GIMNASIA MENDOZA': 'GEM', 'RACING CLUB': 'RAC', 'RACING': 'RAC',
+                'SAN LORENZO': 'SLO', 'SAT': 'SAT', 'SAN LUIS FC': 'SLF', 'BOCA JRS (F)': 'BOC', 'BANFIELD (F)': 'BAN', 'RIVER PLATE (F)': 'RIV',
+                'RACING CLUB (F)': 'RAC', 'GIMNASIA (F)': 'GLP', 'SAN LORENZO (F)': 'SLO', 'BELGRANO (F)': 'BEL', "NEWELL'S (F)": 'NOB',
+                'TALLERES (F)': 'TAL', 'UNIÓN DE SANTA FÉ (F)': 'UNI', 'UNION DE SANTA FE (F)': 'UNI', 'LANÚS (F)': 'LAN', 'INDEPENDIENTE (F)': 'IND',
+                'HURACÁN (F)': 'HUR', 'FERRO (F)': 'FER', 'RIESTRA': 'RIE', 'DEPORTIVO RIESTRA': 'RIE', 'UNIÓN': 'UNI', 'UNION': 'UNI', 'CENTRAL CÓRDOBA': 'CCO', 'CENTRAL CORDOBA': 'CCO'
+            };
+
+            const abbreviateClub = (name = '') => {
+                const clean = name.toUpperCase().trim();
+                return CLUB_ABBR[clean] || clean.split(' ').map(p => p[0]).join('').slice(0,4);
+            };
+
+            const syncResults6Logos = (rows) => rows.map(row => ({
+                ...row,
+                team1Logo: getTeamLogo(row.team1),
+                team2Logo: getTeamLogo(row.team2)
+            }));
+
+
+            const applyNextMatchPreset = () => {
+                const leagueLogo = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || null;
+                setData(prev => ({
+                    ...prev,
+                    resTeam1Name: 'ESTUDIANTES LP',
+                    resTeam2Name: 'TALLERES',
+                    resTeam1Logo: getTeamLogo('Estudiantes LP'),
+                    resTeam2Logo: getTeamLogo('Talleres'),
+                    resScore1: '',
+                    resScore2: '',
+                    resTournamentLogo: leagueLogo || prev.resTournamentLogo,
+                    resTournamentName: 'LIGA PROFESIONAL'
+                }));
+            };
+
+            const applyLastFirstDivisionPreset = () => {
+                const leagueLogo = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || null;
+                setData(prev => ({
+                    ...prev,
+                    resTeam1Name: 'TALLERES',
+                    resTeam2Name: 'DEPORTIVO RIESTRA',
+                    resTeam1Logo: getTeamLogo('Talleres'),
+                    resTeam2Logo: getTeamLogo('Deportivo Riestra') || getTeamLogo('Riestra'),
+                    resScore1: '2',
+                    resScore2: '0',
+                    resTournamentLogo: leagueLogo || prev.resTournamentLogo,
+                    resTournamentName: 'LIGA PROFESIONAL'
+                }));
+            };
+
+            const applyJuvenilesPreset = () => {
+                const rows = syncResults6Logos([
+                    { division: 'Cuarta división', localia: 'L', team1: 'Talleres', score: '1-1', team2: 'Colón' },
+                    { division: 'Quinta división', localia: 'L', team1: 'Talleres', score: '1-3', team2: 'Colón' },
+                    { division: 'Sexta división', localia: 'L', team1: 'Talleres', score: '3-1', team2: 'Colón' },
+                    { division: 'Séptima división', localia: 'V', team1: 'Colón', score: '0-2', team2: 'Talleres' },
+                    { division: 'Octava división', localia: 'V', team1: 'Colón', score: '1-1', team2: 'Talleres' },
+                    { division: 'Novena división', localia: 'V', team1: 'Colón', score: '0-4', team2: 'Talleres' }
+                ]);
+                setData(prev => ({
+                    ...prev,
+                    results6Title: 'JUVENILES',
+                    results6Subtitle: 'Jornada 7 vs. Colón',
+                    results6Badge: '#VamosLosPibes',
+                    results6Rows: rows
+                }));
+            };
+
+            const applyOthersPreset = (type = 'reserva') => {
+                const reserveLogo = LEAGUES_DB.find(l => l.name.includes('Torneo Proyección'))?.url || null;
+                const femaleLogo = LEAGUES_DB.find(l => l.name.includes('Femenino'))?.url || null;
+                const genericLogo = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || null;
+                if (type === 'femenino') {
+                    setData(prev => ({
+                        ...prev,
+                        othersTournamentType: 'femenino',
+                        othersSubtitle: 'FEMENINO',
+                        othersComp: 'ÚLTIMO RESULTADO',
+                        othersLogoWhite: false,
+                        othersTournamentLogo: femaleLogo,
+                        othersTeam1Name: 'SAN LORENZO',
+                        othersTeam2Name: 'TALLERES',
+                        othersTeam1Logo: getTeamLogo('San Lorenzo'),
+                        othersTeam2Logo: getTeamLogo('Talleres'),
+                        othersScore1: '3',
+                        othersScore2: '0',
+                        othersColor1: '#8B1E2D',
+                        othersColor2: '#0F3577'
+                    }));
+                    return;
+                }
+                if (type === 'otro') {
+                    setData(prev => ({
+                        ...prev,
+                        othersTournamentType: 'otro',
+                        othersSubtitle: 'OTRO',
+                        othersComp: 'RESULTADO',
+                        othersLogoWhite: false,
+                        othersTournamentLogo: genericLogo,
+                        othersTeam1Name: 'EQUIPO 1',
+                        othersTeam2Name: 'EQUIPO 2',
+                        othersTeam1Logo: null,
+                        othersTeam2Logo: null,
+                        othersScore1: '0',
+                        othersScore2: '0',
+                        othersColor1: '#334155',
+                        othersColor2: '#1e293b'
+                    }));
+                    return;
+                }
+                setData(prev => ({
+                    ...prev,
+                    othersTournamentType: 'reserva',
+                    othersTitle: '',
+                othersSubtitle: 'RESERVA',
+                    othersComp: 'ÚLTIMO RESULTADO',
+                    othersLogoWhite: false,
+                    othersTournamentLogo: reserveLogo,
+                    othersTeam1Name: 'TALLERES',
+                    othersTeam2Name: 'GIMNASIA MENDOZA',
+                    othersTeam1Logo: getTeamLogo('Talleres'),
+                    othersTeam2Logo: getTeamLogo('Gimnasia Mza') || getTeamLogo('Gimnasia Mendoza'),
+                    othersScore1: '0',
+                    othersScore2: '0',
+                    othersColor1: '#0F3577',
+                    othersColor2: '#334155'
+                }));
+            };
+
+            const applyPositionsPreset = (type = 'lpf') => {
+                const leagueLogo = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || null;
+                const reserveLogo = LEAGUES_DB.find(l => l.name.includes('Torneo Proyección'))?.url || null;
+                const femaleLogo = LEAGUES_DB.find(l => l.name.includes('Femenino'))?.url || null;
+                const presets = {
+                    lpf: {
+                        title: 'TABLA DE POSICIONES', subtitle: 'LIGA PROFESIONAL', logo: leagueLogo,
+                        rows: [
+                            ['Estudiantes LP',27,10,14],['Vélez',26,6,14],['Boca Juniors',24,8,14],['Talleres',24,4,14],['Lanús',23,4,14],
+                            ['Independiente',21,5,14],['Unión',19,4,14],['Defensa y Justicia',19,2,14],['San Lorenzo',19,0,14],['Instituto',17,-2,14],
+                            ['Platense',16,-2,14],['Central Córdoba',15,-9,14],['Gimnasia Mza',14,-6,14],['Newells',13,-12,14],['Riestra',7,-9,14]
+                        ]
+                    },
+                    reserva: {
+                        title: 'TABLA DE POSICIONES', subtitle: 'RESERVA', logo: reserveLogo,
+                        rows: [
+                            ['Vélez',22,16,9],['Rosario Central',17,5,9],['Talleres',16,4,9],['Racing',15,4,9],['Gimnasia LP',14,4,9],['River Plate',14,4,9],
+                            ['Instituto',14,3,9],['AAAJ',14,3,9],['Atlético Tucumán',14,1,9],['Unión',11,-2,9],['San Lorenzo',11,-4,9],['Tigre',9,-2,9],
+                            ['Sarmiento',9,-3,9],['Banfield',9,-3,9],['Gimnasia Mza',9,-6,9],['Barracas Central',8,-8,9],['Aldosivi',7,-8,9],['Godoy Cruz',5,-8,9]
+                        ]
+                    },
+                    femenino: {
+                        title: 'TABLA DE POSICIONES', subtitle: 'FEMENINO', logo: femaleLogo,
+                        rows: [
+                            ['Racing',9,9,3],['River Plate',9,9,3],['Banfield',9,4,3],['Gimnasia LP',7,4,3],['San Lorenzo',7,4,3],['Belgrano',6,1,3],
+                            ['SAT',5,1,3],['Boca Juniors',4,0,3],['Newells',4,0,3],['San Luis FC',2,-2,3],['Talleres',2,-3,3],['Huracán',1,-3,3],
+                            ['Ferro',1,-3,3],['Independiente',0,-4,3],['Unión',0,-7,3],['Lanús',0,-10,3]
+                        ]
+                    }
+                };
+                const preset = presets[type] || presets.lpf;
+                setData(prev => ({
+                    ...prev,
+                    positionsMode: type,
+                    positionsTitle: preset.title,
+                    positionsSubtitle: preset.subtitle,
+                    positionsRows: preset.rows.map((r, idx) => ({ pos: idx + 1, team: r[0], pts: r[1], dg: r[2], pj: r[3], logo: getTeamLogo(r[0]) })),
+                    resTournamentLogo: type === 'lpf' ? preset.logo || prev.resTournamentLogo : prev.resTournamentLogo,
+                    positionsTournamentLogo: preset.logo
+                }));
+            };
 
             const fontWeightClass = data.useBold ? 'force-bold' : 'font-normal';
 
@@ -453,23 +784,96 @@
                 preload.src = image;
             }, [image]);
 
+            const getFusionPreset = (mode = 'normal') => {
+                const presets = {
+                    normal: { tint: 'rgba(255,255,255,0)', blend: 'normal', extraFilter: 'contrast(1.06) saturate(1.04)', opacity: 1 },
+                    multiply: { tint: 'rgba(255,255,255,0)', blend: 'multiply', extraFilter: 'contrast(1.12) saturate(1.02)', opacity: 1 },
+                    screen: { tint: 'rgba(255,255,255,0)', blend: 'screen', extraFilter: 'brightness(1.05) contrast(1.06)', opacity: 1 },
+                    overlay: { tint: 'rgba(255,255,255,0)', blend: 'overlay', extraFilter: 'contrast(1.12) saturate(1.08)', opacity: 1 },
+                    'soft-light': { tint: 'rgba(255,255,255,0)', blend: 'soft-light', extraFilter: 'contrast(1.06) saturate(1.08)', opacity: 1 },
+                    'hard-light': { tint: 'rgba(255,255,255,0)', blend: 'hard-light', extraFilter: 'contrast(1.12) saturate(1.08)', opacity: 1 },
+                    lighten: { tint: 'rgba(255,255,255,0)', blend: 'lighten', extraFilter: 'brightness(1.06) contrast(1.05)', opacity: 1 },
+                    darken: { tint: 'rgba(255,255,255,0)', blend: 'darken', extraFilter: 'contrast(1.12) saturate(1.04)', opacity: 1 },
+                    'color-dodge': { tint: 'rgba(255,255,255,0)', blend: 'color-dodge', extraFilter: 'brightness(1.08) contrast(1.08)', opacity: 1 },
+                    'color-burn': { tint: 'rgba(255,255,255,0)', blend: 'color-burn', extraFilter: 'contrast(1.16) saturate(1.04)', opacity: 1 },
+                    difference: { tint: 'rgba(255,255,255,0)', blend: 'difference', extraFilter: 'contrast(1.08) saturate(1.01)', opacity: 1 },
+                    exclusion: { tint: 'rgba(255,255,255,0)', blend: 'exclusion', extraFilter: 'contrast(1.06) saturate(1.04)', opacity: 1 },
+                    luminosity: { tint: 'rgba(255,255,255,0)', blend: 'luminosity', extraFilter: 'contrast(1.08) saturate(1.03)', opacity: 1 },
+                    saturation: { tint: 'rgba(255,255,255,0)', blend: 'saturation', extraFilter: 'contrast(1.08) saturate(1.14)', opacity: 1 },
+                    color: { tint: 'rgba(255,255,255,0)', blend: 'color', extraFilter: 'contrast(1.08) saturate(1.12)', opacity: 1 },
+                    hue: { tint: 'rgba(255,255,255,0)', blend: 'hue', extraFilter: 'contrast(1.06) saturate(1.08)', opacity: 1 }
+                };
+                return presets[mode] || presets.normal;
+            };
+
+            const getFusionBackgroundLayerStyle = (mode = 'normal', opts = {}) => {
+                const preset = getFusionPreset(mode);
+                const imgSize = `${Math.max(100, Math.round(100 * imageScale))}% auto`;
+                const composedFilter = [imageFilter || '', preset.extraFilter || '', opts.extraFilter || ''].filter(Boolean).join(' ');
+                if (!image) {
+                    return {
+                        backgroundImage: `linear-gradient(${opts.fallbackColor || '#ffffff'}, ${opts.fallbackColor || '#ffffff'})`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '100% 100%',
+                        backgroundPosition: 'center center',
+                        opacity: opts.opacity ?? 1,
+                        filter: composedFilter || 'none'
+                    };
+                }
+                return {
+                    backgroundImage: `linear-gradient(${opts.tint || preset.tint}, ${opts.tint || preset.tint}), url(${image})`,
+                    backgroundRepeat: 'no-repeat, no-repeat',
+                    backgroundSize: '100% 100%, ' + imgSize,
+                    backgroundPosition: 'center center, calc(50% + ' + imagePos.x + 'px) calc(50% + ' + imagePos.y + 'px)',
+                    backgroundBlendMode: preset.blend,
+                    opacity: opts.opacity ?? preset.opacity ?? 1,
+                    filter: composedFilter || 'none'
+                };
+            };
+
+            const getFusionTextLayerStyle = ({ mode = 'normal', shadow = '0 15px 30px rgba(0,0,0,0.9)', tint, extraFilter } = {}) => ({
+                ...getFusionBackgroundLayerStyle(mode, { tint, extraFilter }),
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                color: 'transparent',
+                textShadow: shadow,
+                transform: 'translateZ(0)'
+            });
+
+            const getArrowFusionStyle = (mode = 'normal') => ({
+                mixBlendMode: mode === 'normal' ? 'normal' : getSafeTextBlendMode(mode),
+                opacity: mode === 'normal' ? 1 : 0.7,
+                filter: mode === 'normal' ? 'drop-shadow(0 12px 24px rgba(0,0,0,0.28))' : 'drop-shadow(0 12px 24px rgba(0,0,0,0.35))'
+            });
+
+
+            const renderHoyArrowShape = () => (
+                <CorsImg src={data.hjArrowUrl} className="w-full h-full object-contain" />
+            );
+
             useEffect(() => {
                 const initImages = async () => {
-                    const t1 = TEAMS_DB.find(t => t.name.includes('Talleres'))?.url;
                     const l1 = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || LEAGUES_DB[0].url;
                     const logo = THEME.logo;
-                    const [b64t1, b64l1, b64Logo] = await Promise.all([
-                        convertUrlToBase64(t1),
+                    const [b64l1, b64Logo] = await Promise.all([
                         convertUrlToBase64(l1),
                         convertUrlToBase64(logo)
                     ]);
                     setData(prev => ({
                         ...prev,
-                        resTeam2Logo: b64t1,
-                        resTeam1Logo: TEAMS_DB.find(t => t.name.includes('Defensa'))?.url || TEAMS_DB[0].url,
                         resTournamentLogo: b64l1,
-                        logoBase64: b64Logo
+                        logoBase64: b64Logo,
+                        othersTeam1Logo: getTeamLogo('Talleres'),
+                        othersTeam2Logo: getTeamLogo('Gimnasia Mza') || getTeamLogo('Gimnasia Mendoza'),
+                        othersTournamentLogo: LEAGUES_DB.find(l => l.name.includes('Torneo Proyección'))?.url || null,
+                        positionsTournamentLogo: LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || null,
+                        results6Rows: syncResults6Logos(prev.results6Rows)
                     }));
+                    applyNextMatchPreset();
+                    applyJuvenilesPreset();
+                    applyOthersPreset('reserva');
+                    applyPositionsPreset('lpf');
                 };
                 initImages();
             }, []);
@@ -480,8 +884,8 @@
                         const { width, height } = containerRef.current.getBoundingClientRect();
                         const scaleX = (width - 40) / 1080;
                         const scaleY = (height - 40) / 1350;
-                        const scale = Math.min(scaleX, scaleY, 0.78);
-                        setPreviewScale(Math.max(scale, 0.18));
+                        const scale = Math.min(scaleX, scaleY, 0.72);
+                        setPreviewScale(Math.max(scale, 0.16));
                     }
                 };
                 window.addEventListener('resize', handleResize);
@@ -551,7 +955,7 @@
                 setImageReady(false);
                 setImage(base64OrUrl);
                 setImagePos({ x: 0, y: 0 });
-                setImageScale(1);
+                setImageScale(1.08);
                 setImageFit('contain');
                 setImageFilter('');
             };
@@ -572,6 +976,15 @@
                     applyImageToCanvas(base64 || url);
                     setLoading(false);
                 }
+            };
+
+            const handleClearImage = () => {
+                setImage(null);
+                setImageReady(true);
+                setImagePos({ x: 0, y: 0 });
+                setImageScale(1);
+                setImageFilter('');
+                setImageFit('contain');
             };
 
             const handlePasteButton = async () => {
@@ -676,7 +1089,7 @@
                         try {
                             blob = await window.htmlToImage.toBlob(canvasRef.current, {
                                 cacheBust: true,
-                                pixelRatio: 2.5,
+                                pixelRatio: 2.0,
                                 backgroundColor: THEME.bg,
                                 style: commonStyle,
                                 skipAutoScale: true,
@@ -689,7 +1102,7 @@
 
                     if (!blob && window.html2canvas) {
                         const canvas = await window.html2canvas(canvasRef.current, {
-                            scale: isMobile ? 2 : 2.6,
+                            scale: isMobile ? 1.6 : 2.0,
                             useCORS: true,
                             allowTaint: false,
                             backgroundColor: THEME.bg,
@@ -714,7 +1127,7 @@
                     if (!blob && window.htmlToImage) {
                         const dataUrl = await window.htmlToImage.toPng(canvasRef.current, {
                             cacheBust: true,
-                            pixelRatio: isMobile ? 1.75 : 2,
+                            pixelRatio: isMobile ? 1.5 : 1.75,
                             backgroundColor: THEME.bg,
                             style: commonStyle,
                             skipAutoScale: true,
@@ -725,6 +1138,7 @@
 
                     if (!blob) throw new Error('No se pudo generar la imagen.');
                     wrapperRef.current.style.transform = originalTransform;
+                    blob = await resizeBlobIfNeeded(blob, 960, 1200);
                     downloadBlob(blob, fileName);
                 } catch (err) {
                     console.error('Error capturando:', err);
@@ -738,7 +1152,15 @@
             const titleGradientClass = 'bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-400';
             const accentGradientClass = 'bg-clip-text text-transparent bg-gradient-to-b from-[#1D4ED8] to-[#0F3577]';
 
-            const BackgroundImage = () => (
+            const BackgroundImage = () => {
+                const isMatchGraphic = activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL || activeTemplate === TEMPLATES.OTROS_RESULTADOS;
+                const overlayMode = data.hjOverlayBlendMode === 'normal' ? 'normal' : data.hjOverlayBlendMode;
+                const overlayOpacity = data.hjOverlayBlendMode === 'normal' ? 1 : 0.84;
+                const overlayGradient = data.blueOverlayReverse
+                    ? `linear-gradient(135deg, ${data.blueOverlayColor2} 0%, ${data.blueOverlayColor1} 100%)`
+                    : `linear-gradient(135deg, ${data.blueOverlayColor1} 0%, ${data.blueOverlayColor2} 100%)`;
+
+                return (
                 <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
                     {image && (
                         <CorsImg
@@ -756,17 +1178,74 @@
                         />
                     )}
                     {data.blueOverlay ? (
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#021024]/90 via-[#0f3577]/70 to-[#1e40af]/60 mix-blend-multiply" />
-                    ) : (
-                        <div className="absolute inset-0 bg-[#021024]/40 mix-blend-multiply" />
-                    )}
+                        <>
+                            <div className="absolute inset-0" style={{ background: overlayGradient, mixBlendMode: 'color', opacity: 0.68 }} />
+                            <div className="absolute inset-0" style={{ background: overlayGradient, mixBlendMode: 'multiply', opacity: 0.42 }} />
+                        </>
+                    ) : (!isMatchGraphic ? (
+                        <div className="absolute inset-0 bg-[#021024]/14 mix-blend-multiply" />
+                    ) : null)}
                     {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && data.hjOverlayUrl && (
-                        <div className="absolute inset-0 z-10 opacity-90 pointer-events-none" style={{ mixBlendMode: data.hjOverlayBlendMode }}>
+                        <div className="absolute inset-0 z-10 pointer-events-none" style={{ mixBlendMode: overlayMode, opacity: overlayOpacity }}>
                             <CorsImg src={data.hjOverlayUrl} className="w-full h-full object-cover" />
                         </div>
                     )}
                 </div>
-            );
+                );
+            };
+            const PatternFusionText = ({ textValue, y, fontSize, blendMode = 'normal', hollow = false, fallbackColor = '#FFFFFF', strokeWidth = 18, letterSpacing = 6, shadowOpacity = 0.78 }) => {
+                const safeId = textValue.replace(/[^a-zA-Z0-9]/g, '') || 'TEXT';
+                const patternId = `fusion-${safeId}-${fontSize}-${blendMode}-${hollow ? 'h' : 's'}`;
+                const imgHref = image || data.hjOverlayUrl || '';
+                const preserve = imageFit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet';
+                const patternTransform = `translate(${imagePos.x} ${imagePos.y}) translate(540 675) scale(${imageScale}) translate(-540 -675)`;
+                const preset = getFusionPreset(blendMode);
+                const fused = blendMode !== 'normal' && !!imgHref;
+                const toneFilter = [imageFilter || '', 'contrast(1.16)', 'brightness(1.08)', 'saturate(1.1)', preset.extraFilter || ''].filter(Boolean).join(' ');
+                const shadowY = Math.max(8, Math.round(fontSize * 0.055));
+                const shadowBlur = Math.max(8, Math.round(fontSize * 0.04));
+                const solidStrokeWidth = Math.max(4, Math.round(fontSize * 0.028));
+                const hollowStrokeWidth = Math.max(8, Math.round(fontSize * 0.056));
+                const mainStrokeWidth = hollow ? hollowStrokeWidth : (fused ? solidStrokeWidth : Math.max(3, Math.round(fontSize * 0.02)));
+                const fillValue = hollow ? 'transparent' : (fused ? `url(#${patternId})` : fallbackColor);
+                const strokeValue = fused ? `url(#${patternId})` : fallbackColor;
+
+                return (
+                    <svg className="absolute inset-0 w-full h-full overflow-visible" viewBox="0 0 1080 1350" preserveAspectRatio="none">
+                        <defs>
+                            <pattern id={patternId} patternUnits="userSpaceOnUse" width="1080" height="1350">
+                                {imgHref ? (
+                                    <image href={imgHref} x="0" y="0" width="1080" height="1350" preserveAspectRatio={preserve} transform={patternTransform} style={{ filter: toneFilter }} />
+                                ) : (
+                                    <rect x="0" y="0" width="1080" height="1350" fill={fallbackColor} />
+                                )}
+                            </pattern>
+                            <filter id={`${patternId}-shadow`} x="-30%" y="-30%" width="160%" height="180%">
+                                <feDropShadow dx="0" dy={shadowY} stdDeviation={shadowBlur} floodColor="rgba(0,0,0,1)" floodOpacity={shadowOpacity} />
+                            </filter>
+                        </defs>
+
+                        <text
+                            x="540"
+                            y={y}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fontFamily="Azonix, sans-serif"
+                            fontSize={fontSize}
+                            letterSpacing={letterSpacing}
+                            filter={`url(#${patternId}-shadow)`}
+                            paintOrder="stroke fill"
+                            fill={fillValue}
+                            stroke={strokeValue}
+                            strokeWidth={mainStrokeWidth}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        >
+                            {textValue}
+                        </text>
+                    </svg>
+                );
+            };
 
             const LogoComponent = () => (
                 <CorsImg src={data.logoBase64 || THEME.logo} alt="Logo" className="h-24 w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
@@ -975,7 +1454,6 @@
                     </div>
                 );
             };
-
             const renderHoyJuega = () => {
                 const isLeft = data.hjLogosPosX === 'left';
                 const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
@@ -986,9 +1464,8 @@
                 const boxPaddingClass = isLeft ? 'pl-[3.8rem] pr-2' : 'pr-[3.8rem] pl-2';
 
                 return (
-                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste} style={{ isolation: 'isolate' }}>
                         <BackgroundImage />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/80 via-transparent to-[#021024]/80 pointer-events-none z-0" />
                         <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20"><LogoComponent /></div>
 
                         <div className={`absolute ${infoYClass} ${infoXClass} z-50 flex items-center`}>
@@ -1007,32 +1484,12 @@
                         </div>
 
                         <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
-                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">
-                                HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA
-                            </div>
+                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA</div>
                         </div>
 
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center z-30 pointer-events-none w-full">
-                            <h1 className="text-[6.8rem] font-azonix tracking-[0.08em] leading-[0.93] text-center w-full break-words px-[5.4rem]">
-                                <span style={getBlendTextStyle({
-                                    mode: data.hjTextBlendMode1,
-                                    color: data.hjTextColor1,
-                                    hollow: data.hjTextHollow1,
-                                    shadow: data.hjTextHollow1 ? '0 8px 20px rgba(0,0,0,0.8)' : '0 15px 30px rgba(0,0,0,0.9)'
-                                })}>
-                                    {data.hjTextLine1}
-                                </span>
-                            </h1>
-                            <h2 className="text-[8.15rem] font-azonix tracking-[0.12em] leading-[0.84] uppercase text-center w-full break-words px-[5.2rem] mt-1">
-                                <span style={getBlendTextStyle({
-                                    mode: data.hjTextBlendMode2,
-                                    color: data.hjTextColor2,
-                                    hollow: false,
-                                    shadow: '0 15px 30px rgba(0,0,0,0.9)'
-                                })}>
-                                    {data.hjTextLine2}
-                                </span>
-                            </h2>
+                        <div className="absolute inset-0 z-30 pointer-events-none select-none">
+                            <PatternFusionText textValue={data.hjTextLine1} y={548} fontSize={120} blendMode={data.hjTextBlendMode1} hollow={data.hjTextHollow1} fallbackColor={data.hjTextColor1} strokeWidth={26} letterSpacing={6} />
+                            <PatternFusionText textValue={data.hjTextLine2} y={738} fontSize={138} blendMode={data.hjTextBlendMode2} hollow={data.hjTextHollow2} fallbackColor={data.hjTextColor2} strokeWidth={22} letterSpacing={8} />
                         </div>
                     </div>
                 );
@@ -1042,14 +1499,13 @@
                 const isLeft = data.hjLogosPosX === 'left';
                 const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
                 const blockXClass = isLeft ? 'left-[4.5rem]' : 'right-[4.5rem]';
-                const blockYClass = 'bottom-[4.7rem]';
+                const blockYClass = 'bottom-[5.2rem]';
                 const infoYClass = 'bottom-12';
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
 
                 return (
-                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste} style={{ isolation: "isolate" }}>
                         <BackgroundImage />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#021024]/90 via-transparent to-[#021024]/90 pointer-events-none z-0" />
 
                         <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
                             <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">
@@ -1069,15 +1525,15 @@
                                 </div>
                             </div>
 
-                            <div className={`bg-white w-[12rem] h-[24rem] flex flex-col items-center justify-stretch relative overflow-hidden border-gray-300 ${isLeft ? 'rounded-r-[2.8rem] border-y-2 border-r-2' : 'rounded-l-[2.8rem] border-y-2 border-l-2'}`}>
+                            <div className={`bg-white w-[12rem] h-[24rem] flex flex-col items-center justify-stretch relative overflow-hidden ${isLeft ? 'rounded-r-[2.8rem] border-r-2 border-gray-300' : 'rounded-l-[2.8rem] border-l-2 border-gray-300'}` }>
                                 <div className="h-1/2 flex items-center justify-center w-full relative">
-                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(4px)' }}>
+                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(2px)' }}>
                                         {data.resScore1}
                                     </span>
                                 </div>
                                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[62%] h-1.5 bg-gray-300 rounded-full"></div>
                                 <div className="h-1/2 flex items-center justify-center w-full relative">
-                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(4px)' }}>
+                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(2px)' }}>
                                         {data.resScore2}
                                     </span>
                                 </div>
@@ -1092,6 +1548,146 @@
                     </div>
                 );
             };
+            const renderResultados6 = () => {
+                const ribbonClass = 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r';
+                const subtitleShort = (data.results6Subtitle || 'Jornada').split(' vs.')[0];
+                const firstRow = (data.results6Rows && data.results6Rows[0]) ? data.results6Rows[0] : null;
+                const homeName = firstRow ? firstRow.team1 : 'TALLERES';
+                const awayName = firstRow ? firstRow.team2 : 'RIVAL';
+                const homeLogo = firstRow ? firstRow.team1Logo : getTeamLogo(homeName);
+                const awayLogo = firstRow ? firstRow.team2Logo : getTeamLogo(awayName);
+
+                return (
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden">
+                        <div className="absolute inset-0">
+                            <CorsImg src={data.results6Bg} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="absolute inset-0 bg-[#021024]/72" />
+
+                        <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-30 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
+                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[2.35rem] tracking-widest uppercase">{data.results6Badge} - {data.results6Badge} - {data.results6Badge}</div>
+                        </div>
+
+                        <div className="absolute top-10 right-10 z-30 flex items-center gap-4"><LogoComponent /></div>
+
+                        <div className="absolute left-[106px] right-[74px] top-[96px] bottom-[92px] z-20 rounded-[1.8rem] bg-[#031029]/98 border border-[#1D4ED8]/40 shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
+                            <div className="px-10 pt-10 pb-6 text-center bg-[#031029] border-b border-[#1D4ED8]/30">
+                                <h1 className="text-[4.6rem] leading-none font-azonix uppercase tracking-[0.03em] text-white">{data.results6Title}</h1>
+                                <h2 className="text-[2rem] leading-none mt-5 font-talleres tracking-[0.04em] text-[#dbeafe]" style={{ transform: 'translateY(4px)' }}>{subtitleShort}</h2>
+                                <div className="mt-6 grid grid-cols-[90px_1fr_70px_1fr_90px] items-center gap-4">
+                                    <div className="w-20 h-20 mx-auto flex items-center justify-center">{homeLogo && <CorsImg src={homeLogo} className="w-16 h-16 object-contain" />}</div>
+                                    <div className="text-right text-white font-talleres text-[2.5rem] leading-none tracking-[0.03em]">{abbreviateClub(homeName)}</div>
+                                    <div className="text-center text-[#dbeafe] font-talleres text-[2.2rem] leading-none">X</div>
+                                    <div className="text-left text-white font-talleres text-[2.5rem] leading-none tracking-[0.03em]">{abbreviateClub(awayName)}</div>
+                                    <div className="w-20 h-20 mx-auto flex items-center justify-center">{awayLogo && <CorsImg src={awayLogo} className="w-16 h-16 object-contain" />}</div>
+                                </div>
+                            </div>
+
+                            <div className="px-8 py-6 h-[calc(100%-250px)] flex flex-col gap-3 justify-between">
+                                {data.results6Rows.map((row, idx) => (
+                                    <div key={idx} className="rounded-[1.15rem] bg-[#071a3c] border border-[#1D4ED8]/20 px-5 py-3 flex flex-col justify-center min-h-[95px]">
+                                        <div className="text-center text-[#bfdbfe] font-montserrat font-bold text-[1.02rem] uppercase tracking-[0.03em] whitespace-nowrap">{row.division} - {row.localia}</div>
+                                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-5 mt-2">
+                                            <div className="text-right min-w-0">
+                                                <div className="text-white font-talleres text-[2.15rem] uppercase leading-none whitespace-nowrap">{abbreviateClub(row.team1)}</div>
+                                            </div>
+                                            <div className="text-white font-talleres text-[2.25rem] leading-none whitespace-nowrap tracking-[0.04em] text-center" style={{ transform: 'translateY(4px)' }}>{row.score}</div>
+                                            <div className="text-left min-w-0">
+                                                <div className="text-white font-talleres text-[2.15rem] uppercase leading-none whitespace-nowrap">{abbreviateClub(row.team2)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderOtrosResultados = () => {
+                const tournamentLabel = data.othersSubtitle || '';
+                const logoTintFilter = data.othersLogoWhite
+                    ? 'brightness(0) invert(1)'
+                    : 'brightness(0) saturate(100%) invert(13%) sepia(53%) saturate(2747%) hue-rotate(205deg) brightness(88%) contrast(104%)';
+                const logoTextColor = data.othersLogoWhite ? '#ffffff' : '#0F3577';
+                return (
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
+                        {image ? <CorsImg src={image} className="absolute inset-0 w-full h-full object-cover" style={{ transform: `translate(${imagePos.x}px, ${imagePos.y}px) scale(${imageScale})`, filter: imageFilter, objectFit: imageFit }} /> : <div className="absolute inset-0 bg-gradient-to-br from-[#071426] via-[#07111f] to-[#0b1730]" />}
+                        <div className="absolute inset-0 bg-[#021024]/42" />
+                        <div className="absolute top-12 left-12 z-30 flex items-center gap-4 rounded-[1.4rem] border border-white/18 bg-white/10 backdrop-blur-md px-5 py-3 shadow-[0_10px_35px_rgba(0,0,0,0.25)]">
+                            {data.othersTournamentLogo && <div className="w-20 h-20 flex items-center justify-center p-2"><CorsImg src={data.othersTournamentLogo} className="w-full h-full object-contain" style={{ filter: logoTintFilter }} /></div>}
+                            <div className="text-left">
+                                <div className="font-azonix text-[1.15rem] uppercase tracking-[0.08em]" style={{ color: logoTextColor }}>{tournamentLabel}</div>
+                                <div className="font-azonix text-[0.86rem] uppercase tracking-[0.08em]" style={{ color: logoTextColor, opacity: 0.85 }}>{data.othersComp}</div>
+                            </div>
+                        </div>
+                        <div className="absolute top-10 right-10 z-30"><LogoComponent /></div>
+
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[84px] z-20 flex items-stretch items-center gap-0 shadow-[0_20px_45px_rgba(0,0,0,0.45)]">
+                            <div className="w-[230px] h-[210px] rounded-l-[2rem] flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${data.othersColor1}, #0b1220)` }}>
+                                {data.othersTeam1Logo && <CorsImg src={data.othersTeam1Logo} className="w-32 h-32 object-contain filter brightness-0 invert" />}
+                            </div>
+                            <div className="w-[430px] h-[210px] bg-white flex items-center justify-center gap-7 border-y border-slate-300">
+                                <span className="text-[#0F3577] font-talleres text-[9.2rem] leading-none" style={{ transform: 'translateY(5px)' }}>{data.othersScore1}</span>
+                                <span className="text-[#0F3577] font-azonix text-[4.6rem] leading-none">-</span>
+                                <span className="text-[#0F3577] font-talleres text-[9.2rem] leading-none" style={{ transform: 'translateY(5px)' }}>{data.othersScore2}</span>
+                            </div>
+                            <div className="w-[230px] h-[210px] rounded-r-[2rem] flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${data.othersColor2}, #0b1220)` }}>
+                                {data.othersTeam2Logo && <CorsImg src={data.othersTeam2Logo} className="w-32 h-32 object-contain filter brightness-0 invert" />}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderPosiciones = () => {
+                const allRows = data.positionsRows || [];
+                const talleresIdx = allRows.findIndex(row => normalizeName(row.team) === 'talleres');
+                let rows = allRows.slice(0, 10).map(r => ({ ...r, displayPos: r.pos }));
+                if (talleresIdx >= 10) {
+                    const talleresRow = { ...allRows[talleresIdx], displayPos: 10, realPos: allRows[talleresIdx].pos };
+                    rows = [...allRows.slice(0, 9).map(r => ({ ...r, displayPos: r.pos })), talleresRow];
+                }
+                return (
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden">
+                        <div className="absolute inset-0">
+                            <CorsImg src={data.results6Bg} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="absolute inset-0 bg-[#021024]/80" />
+                        <div className="absolute top-10 right-10 z-30"><LogoComponent /></div>
+                        <div className="absolute left-[106px] right-[74px] top-[96px] bottom-[90px] z-20 rounded-[1.8rem] bg-[#020d23]/99 border border-[#1D4ED8]/40 shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
+                            <div className="px-10 pt-8 pb-4 text-center flex flex-col items-center bg-[#041537]">
+                                <h1 className="text-[4.15rem] leading-none font-azonix uppercase tracking-[0.02em] text-white">TABLA DE POSICIONES</h1>
+                                <h2 className="text-[1.35rem] leading-none mt-3 font-azonix tracking-[0.05em] text-[#bfdbfe]">{data.positionsSubtitle}</h2>
+                                {data.positionsTournamentLogo && <div className="w-16 h-16 mt-3"><CorsImg src={data.positionsTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" /></div>}
+                            </div>
+                            <div className="px-5 py-4">
+                                <div className="grid grid-cols-[48px_56px_1fr_74px_74px_74px] items-center gap-2 bg-[#0a2a59] text-[#bfdbfe] font-azonix uppercase text-[0.78rem] rounded-[0.9rem] px-3 py-2 mb-2">
+                                    <div>Pos</div><div></div><div>Equipo</div><div className="text-center">Pts</div><div className="text-center">DG</div><div className="text-center">PJ</div>
+                                </div>
+                                <div className="flex flex-col gap-[6px]">
+                                    {rows.map((row, idx) => {
+                                        const isTalleres = normalizeName(row.team) === 'talleres';
+                                        return (
+                                            <div key={`${row.team}-${idx}`} className={`grid grid-cols-[48px_56px_1fr_74px_74px_74px] items-center gap-2 rounded-[0.9rem] px-3 py-[7px] ${isTalleres ? 'bg-[#0d4aa6]' : 'bg-[#061834]'}`}>
+                                                <div className="text-white font-azonix text-[0.9rem]">{row.pos}</div>
+                                                <div className="w-11 h-11 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">{row.logo && <CorsImg src={row.logo} className="w-7 h-7 object-contain" />}</div>
+                                                <div className="min-w-0 pr-2">
+                                                    <div className={`font-azonix uppercase text-[0.92rem] leading-none truncate ${isTalleres ? 'text-[#dbeafe]' : 'text-white'}`}>{row.team}</div>
+                                                    {row.realPos && <div className="text-[#bfdbfe] text-[0.56rem] font-bold uppercase tracking-[0.03em] mt-1">Posición real: {row.realPos}</div>}
+                                                </div>
+                                                <div className="text-center text-white font-talleres text-[1.95rem] leading-none" style={{ transform: 'translateY(3px)' }}>{row.pts}</div>
+                                                <div className="text-center text-white font-montserrat font-bold text-[0.92rem]">{row.dg}</div>
+                                                <div className="text-center text-white font-montserrat font-bold text-[0.92rem]">{row.pj}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
 
             const renderActiveTemplate = () => {
                 switch (activeTemplate) {
@@ -1101,6 +1697,9 @@
                     case TEMPLATES.NOTICIA_COMUN: return renderNoticiaComun();
                     case TEMPLATES.FORMACION: return renderFormacion();
                     case TEMPLATES.RESULTADO_FINAL: return renderResultadoFINAL();
+                    case TEMPLATES.JUVENILES: return renderResultados6();
+                    case TEMPLATES.OTROS_RESULTADOS: return renderOtrosResultados();
+                    case TEMPLATES.POSICIONES: return renderPosiciones();
                     case TEMPLATES.HOY_JUEGA: return renderHoyJuega();
                     default: return null;
                 }
@@ -1114,6 +1713,13 @@
             };
             const addStat = () => setData(prev => ({ ...prev, statsList: [...prev.statsList, { value: '0', label: 'DATO' }] }));
             const removeStat = (idx) => setData(prev => ({ ...prev, statsList: prev.statsList.filter((_, i) => i !== idx) }));
+            const handleResults6RowChange = (idx, key, val) => {
+                const newRows = [...data.results6Rows];
+                newRows[idx][key] = val;
+                if (key === 'team1') newRows[idx].team1Logo = getTeamLogo(val);
+                if (key === 'team2') newRows[idx].team2Logo = getTeamLogo(val);
+                setData(prev => ({ ...prev, results6Rows: newRows }));
+            };
 
             return (
                 <div className="min-h-screen bg-slate-900 text-white font-sans flex flex-col md:flex-row overflow-hidden">
@@ -1121,32 +1727,110 @@
                         <div className="w-full md:w-[370px] lg:w-[390px] bg-slate-800 border-r border-slate-700 flex flex-col h-screen z-50 shadow-xl relative">
                             <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h1 className="text-xl font-bold text-blue-400 flex items-center gap-2"><Layout size={20}/> EDITOR</h1></div>
                             <div className="p-2 grid grid-cols-4 gap-1 border-b border-slate-700">
-                                {Object.entries(TEMPLATES).map(([key, val]) => <button key={val} onClick={() => setActiveTemplate(val)} className={`p-2 rounded text-[9px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'} col-span-2 md:col-span-1`}>{key.replace('_', ' ')}</button>)}
+                                {Object.entries(TEMPLATES).map(([key, val]) => <button key={val} onClick={() => { setActiveTemplate(val); if (val === TEMPLATES.HOY_JUEGA) applyNextMatchPreset(); if (val === TEMPLATES.RESULTADO_FINAL) applyLastFirstDivisionPreset(); if (val === TEMPLATES.JUVENILES) applyJuvenilesPreset(); if (val === TEMPLATES.OTROS_RESULTADOS) applyOthersPreset(data.othersTournamentType || 'reserva'); if (val === TEMPLATES.POSICIONES) applyPositionsPreset(data.positionsMode || 'lpf'); }} className={`p-2 rounded text-[9px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'} col-span-2 md:col-span-1`}>{key.replace('_', ' ')}</button>)}
                             </div>
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
                                 <div className="space-y-4 bg-slate-700/50 p-3 rounded">
                                     <label className="text-xs font-bold text-slate-400 uppercase">Fondo de Gráfica</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-4 gap-2">
                                         <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold"> <Upload size={14} /> PC/MÓVIL <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} /></label>
                                         <button onClick={handlePasteButton} className="bg-slate-600 hover:bg-slate-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold"><ClipboardPaste size={14} /> PEGAR</button>
                                         <button onClick={handleUrlInput} className="bg-slate-600 hover:bg-slate-500 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">{loading ? '...' : <><LinkIcon size={14} /> URL</>}</button>
+                                        <button onClick={handleClearImage} className="bg-red-700 hover:bg-red-600 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">ELIMINAR</button>
                                     </div>
 
                                     {image && (
                                         <div className="bg-slate-800 p-2 rounded border border-slate-600 mt-2">
                                             <label className="text-[10px] font-bold text-slate-400 mb-1 block">Filtros de Imagen Base</label>
-                                            <div className="grid grid-cols-5 gap-1">
+                                            <div className="grid grid-cols-4 gap-1">
                                                 <button onClick={() => setImageFilter('')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === '' ? 'bg-blue-600' : 'bg-slate-700'}`}>Norm</button>
                                                 <button onClick={() => setImageFilter('grayscale(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'grayscale(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>B&N</button>
                                                 <button onClick={() => setImageFilter('sepia(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'sepia(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Sepia</button>
                                                 <button onClick={() => setImageFilter('brightness(0.5)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'brightness(0.5)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Oscuro</button>
-                                                <button onClick={() => setImageFilter('contrast(1.5) saturate(1.2)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter.includes('contrast') ? 'bg-blue-600' : 'bg-slate-700'}`}>Vivo</button>
+                                                <button onClick={() => setImageFilter('contrast(1.5) saturate(1.2)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.5) saturate(1.2)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Vivo</button>
+                                                <button onClick={() => setImageFilter('contrast(1.18) saturate(1.12) brightness(1.03)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.18) saturate(1.12) brightness(1.03)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Claridad</button>
+                                                <button onClick={() => setImageFilter('contrast(1.22) saturate(1.14) brightness(1.04)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.22) saturate(1.14) brightness(1.04)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Textura</button>
+                                                <button onClick={() => setImageFilter('contrast(1.2) saturate(1.1) brightness(1.05)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.2) saturate(1.1) brightness(1.05)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Raw</button>
                                             </div>
                                             <div className="flex items-center gap-4 mt-3"><span className="text-[10px] font-bold text-slate-400 w-16">AJUSTE</span><button onClick={() => setImageFit(imageFit === 'cover' ? 'contain' : 'cover')} className="bg-slate-700 p-1 text-[10px] rounded flex-1 font-bold">{imageFit === 'cover' ? 'RELLENAR (AUTO-RECORTE)' : 'VER COMPLETA (SIN RECORTE)'}</button></div>
                                         </div>
                                     )}
 
-                                    {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
+    
+                                {activeTemplate === TEMPLATES.JUVENILES && (
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <label className="text-xs font-bold text-blue-300">PLACA JUVENILES</label><p className="text-[10px] text-slate-400">Los nombres se muestran abreviados automáticamente en la placa.</p>
+                                            <input type="text" value={data.results6Title} onChange={(e) => handleInputChange('results6Title', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
+                                            <input type="text" value={data.results6Subtitle} onChange={(e) => handleInputChange('results6Subtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
+                                            <input type="text" value={data.results6Badge} onChange={(e) => handleInputChange('results6Badge', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Texto cinta" />
+                                            <button onClick={applyJuvenilesPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR ÚLTIMA FECHA JUVENILES</button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {data.results6Rows.map((row, i) => (
+                                                <div key={i} className="bg-slate-800 p-2 rounded border border-slate-700 space-y-2">
+                                                    <div className="grid grid-cols-[1fr_70px] gap-2">
+                                                        <input value={row.division} onChange={(e) => handleResults6RowChange(i, 'division', e.target.value)} className="bg-slate-900 p-1 rounded text-xs font-bold text-blue-300" placeholder="División" />
+                                                        <input value={row.localia || ''} onChange={(e) => handleResults6RowChange(i, 'localia', e.target.value)} className="bg-slate-900 p-1 rounded text-xs text-center font-bold" placeholder="L/V" />
+                                                    </div>
+                                                    <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
+                                                        <input value={row.team1} onChange={(e) => handleResults6RowChange(i, 'team1', e.target.value)} className="bg-slate-900 p-1 rounded text-xs" placeholder="Equipo 1" />
+                                                        <input value={row.score} onChange={(e) => handleResults6RowChange(i, 'score', e.target.value)} className="bg-slate-900 p-1 rounded text-xs text-center w-24" placeholder="0-0" />
+                                                        <input value={row.team2} onChange={(e) => handleResults6RowChange(i, 'team2', e.target.value)} className="bg-slate-900 p-1 rounded text-xs" placeholder="Equipo 2" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTemplate === TEMPLATES.OTROS_RESULTADOS && (
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Reserva</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR RESERVA</button>
+                                                <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR FEMENINO</button>
+                                            </div>
+                                            <input type="text" value={data.othersTitle} onChange={(e) => handleInputChange('othersTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
+                                            <input type="text" value={data.othersSubtitle} onChange={(e) => handleInputChange('othersSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
+                                            <input type="text" value={data.othersComp} onChange={(e) => handleInputChange('othersComp', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Competencia" />
+                                            <select value={data.othersLogoWhite ? 'white' : 'blue'} onChange={(e) => handleInputChange('othersLogoWhite', e.target.value === 'white')} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="blue">Logo/Título azul oscuro</option><option value="white">Logo/Título blanco</option></select>
+                                        </div>
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="text" value={data.othersTeam1Name} onChange={(e) => handleInputChange('othersTeam1Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 1" />
+                                                <input type="text" value={data.othersTeam2Name} onChange={(e) => handleInputChange('othersTeam2Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 2" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="text" value={data.othersScore1} onChange={(e) => handleInputChange('othersScore1', e.target.value)} className="bg-slate-900 p-2 rounded text-xs text-center font-bold font-talleres" placeholder="0" />
+                                                <input type="text" value={data.othersScore2} onChange={(e) => handleInputChange('othersScore2', e.target.value)} className="bg-slate-900 p-2 rounded text-xs text-center font-bold font-talleres" placeholder="0" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 items-center">
+                                                <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 1</span><input type="color" value={data.othersColor1} onChange={(e) => handleInputChange('othersColor1', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
+                                                <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 2</span><input type="color" value={data.othersColor2} onChange={(e) => handleInputChange('othersColor2', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+
+
+                                {activeTemplate === TEMPLATES.POSICIONES && (
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <label className="text-xs font-bold text-blue-300">TABLA DE POSICIONES</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <button onClick={() => applyPositionsPreset('lpf')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">LPF</button>
+                                                <button onClick={() => applyPositionsPreset('reserva')} className="bg-slate-600 hover:bg-slate-500 rounded py-2 text-xs font-bold">RESERVA</button>
+                                                <button onClick={() => applyPositionsPreset('femenino')} className="bg-pink-600 hover:bg-pink-500 rounded py-2 text-xs font-bold">FEMENINO</button>
+                                            </div>
+                                            <input type="text" value={data.positionsTitle} onChange={(e) => handleInputChange('positionsTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
+                                            <input type="text" value={data.positionsSubtitle} onChange={(e) => handleInputChange('positionsSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
+                                        </div>
+                                    </div>
+                                )}
+                                {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
                                         <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600 mt-2">
                                             <label className="text-[10px] font-bold text-blue-300">Filtro Transparente Sobre Imagen</label>
                                             <div className="flex gap-2">
@@ -1162,6 +1846,7 @@
 
                                     <div className="flex flex-col gap-2 bg-slate-800 p-2 rounded border border-slate-600 mt-2">
                                         <div className="flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => handleInputChange('blueOverlay', !data.blueOverlay)}>{data.blueOverlay ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs font-bold text-slate-300">Aplicar Filtro Azul Oscuro</label></div><PaletteIcon size={16} className={data.blueOverlay ? 'text-blue-400' : 'text-slate-600'}/></div>
+                                        {data.blueOverlay && <div className="flex items-center gap-2"><input type="color" value={data.blueOverlayColor1} onChange={(e) => handleInputChange('blueOverlayColor1', e.target.value)} className="w-8 h-8 rounded border-none p-0 bg-transparent" /><input type="color" value={data.blueOverlayColor2} onChange={(e) => handleInputChange('blueOverlayColor2', e.target.value)} className="w-8 h-8 rounded border-none p-0 bg-transparent" /><button onClick={() => handleInputChange('blueOverlayReverse', !data.blueOverlayReverse)} className="bg-slate-700 px-2 py-1 rounded text-[10px] font-bold">{data.blueOverlayReverse ? 'INVERTIDO' : 'NORMAL'}</button></div>}
                                         <div className="w-full h-[1px] bg-slate-700"></div>
                                         <div className="flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => handleInputChange('useBold', !data.useBold)}>{data.useBold ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs font-bold text-slate-300">Textos en Negrita</label></div><Type size={16} className={data.useBold ? 'text-blue-400' : 'text-slate-600'}/></div>
                                     </div>
@@ -1200,20 +1885,79 @@
 
                                 {activeTemplate === TEMPLATES.NOTICIA_COMUN && <div className="space-y-4"><div className="flex items-center gap-2 mb-2"><button onClick={() => handleInputChange('newsShowTag', !data.newsShowTag)}>{data.newsShowTag ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs text-slate-300">Mostrar Etiqueta</label></div>{data.newsShowTag && <div className="flex gap-2"><input type="text" value={data.newsTag} onChange={(e) => handleInputChange('newsTag', e.target.value)} className="flex-1 bg-slate-900 p-2 rounded text-sm text-center" placeholder="ETIQUETA" /><input type="color" value={data.newsTagColor} onChange={(e) => handleInputChange('newsTagColor', e.target.value)} className="w-10 h-full rounded cursor-pointer border-none bg-transparent" /></div>}<input type="text" value={data.newsTitle} onChange={(e) => handleInputChange('newsTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold text-blue-300" placeholder="TITULAR" /><textarea value={data.newsSubtitle} onChange={(e) => handleInputChange('newsSubtitle', e.target.value)} className="w-full h-32 bg-slate-900 p-2 rounded text-sm" placeholder="Bajada de la noticia..." /></div>}
 
+
+                                {activeTemplate === TEMPLATES.JUVENILES && (
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <label className="text-xs font-bold text-blue-300">PLACA JUVENILES</label><p className="text-[10px] text-slate-400">Los nombres se muestran abreviados automáticamente en la placa.</p>
+                                            <input type="text" value={data.results6Title} onChange={(e) => handleInputChange('results6Title', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
+                                            <input type="text" value={data.results6Subtitle} onChange={(e) => handleInputChange('results6Subtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
+                                            <input type="text" value={data.results6Badge} onChange={(e) => handleInputChange('results6Badge', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Texto cinta" />
+                                            <button onClick={applyJuvenilesPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR ÚLTIMA FECHA JUVENILES</button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {data.results6Rows.map((row, i) => (
+                                                <div key={i} className="bg-slate-800 p-2 rounded border border-slate-700 space-y-2">
+                                                    <div className="grid grid-cols-[1fr_70px] gap-2">
+                                                        <input value={row.division} onChange={(e) => handleResults6RowChange(i, 'division', e.target.value)} className="bg-slate-900 p-1 rounded text-xs font-bold text-blue-300" placeholder="División" />
+                                                        <input value={row.localia || ''} onChange={(e) => handleResults6RowChange(i, 'localia', e.target.value)} className="bg-slate-900 p-1 rounded text-xs text-center font-bold" placeholder="L/V" />
+                                                    </div>
+                                                    <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
+                                                        <input value={row.team1} onChange={(e) => handleResults6RowChange(i, 'team1', e.target.value)} className="bg-slate-900 p-1 rounded text-xs" placeholder="Equipo 1" />
+                                                        <input value={row.score} onChange={(e) => handleResults6RowChange(i, 'score', e.target.value)} className="bg-slate-900 p-1 rounded text-xs text-center w-24" placeholder="0-0" />
+                                                        <input value={row.team2} onChange={(e) => handleResults6RowChange(i, 'team2', e.target.value)} className="bg-slate-900 p-1 rounded text-xs" placeholder="Equipo 2" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTemplate === TEMPLATES.OTROS_RESULTADOS && (
+                                    <div className="space-y-4">
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Reserva</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR RESERVA</button>
+                                                <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR FEMENINO</button>
+                                            </div>
+                                            <input type="text" value={data.othersTitle} onChange={(e) => handleInputChange('othersTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
+                                            <input type="text" value={data.othersSubtitle} onChange={(e) => handleInputChange('othersSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
+                                            <input type="text" value={data.othersComp} onChange={(e) => handleInputChange('othersComp', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Competencia" />
+                                            <select value={data.othersLogoWhite ? 'white' : 'blue'} onChange={(e) => handleInputChange('othersLogoWhite', e.target.value === 'white')} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="blue">Logo/Título azul oscuro</option><option value="white">Logo/Título blanco</option></select>
+                                        </div>
+                                        <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="text" value={data.othersTeam1Name} onChange={(e) => handleInputChange('othersTeam1Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 1" />
+                                                <input type="text" value={data.othersTeam2Name} onChange={(e) => handleInputChange('othersTeam2Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 2" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="text" value={data.othersScore1} onChange={(e) => handleInputChange('othersScore1', e.target.value)} className="bg-slate-900 p-2 rounded text-xs text-center font-bold font-talleres" placeholder="0" />
+                                                <input type="text" value={data.othersScore2} onChange={(e) => handleInputChange('othersScore2', e.target.value)} className="bg-slate-900 p-2 rounded text-xs text-center font-bold font-talleres" placeholder="0" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 items-center">
+                                                <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 1</span><input type="color" value={data.othersColor1} onChange={(e) => handleInputChange('othersColor1', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
+                                                <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 2</span><input type="color" value={data.othersColor2} onChange={(e) => handleInputChange('othersColor2', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {(activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL) && (
                                     <div className="space-y-6">
                                         {activeTemplate === TEMPLATES.HOY_JUEGA && (
                                             <div className="bg-slate-800 p-2 rounded space-y-3 border border-slate-600 mb-4">
                                                 <label className="text-[10px] font-bold text-blue-300">TEXTOS (HOY JUEGA)</label>
+                                                <button onClick={applyNextMatchPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-[10px] font-bold">CARGAR PRÓXIMO PARTIDO</button>
                                                 <div className="flex items-center gap-2 mt-1"><input type="text" value={data.hjTextLine1} onChange={(e) => handleInputChange('hjTextLine1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" /><input type="color" value={data.hjTextColor1} onChange={(e) => handleInputChange('hjTextColor1', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" /><button onClick={() => handleInputChange('hjTextHollow1', !data.hjTextHollow1)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">{data.hjTextHollow1 ? 'HUECO' : 'SÓLIDO'}</button></div>
                                                 <select value={data.hjTextBlendMode1} onChange={(e) => handleInputChange('hjTextBlendMode1', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">{BLEND_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>Fusión HOY JUEGA: {opt.label}</option>)}</select>
-                                                <div className="flex items-center gap-2 mt-1"><input type="text" value={data.hjTextLine2} onChange={(e) => handleInputChange('hjTextLine2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" /><input type="color" value={data.hjTextColor2} onChange={(e) => handleInputChange('hjTextColor2', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" /></div>
+                                                <div className="flex items-center gap-2 mt-1"><input type="text" value={data.hjTextLine2} onChange={(e) => handleInputChange('hjTextLine2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" /><input type="color" value={data.hjTextColor2} onChange={(e) => handleInputChange('hjTextColor2', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" /><button onClick={() => handleInputChange('hjTextHollow2', !data.hjTextHollow2)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">{data.hjTextHollow2 ? 'HUECO' : 'SÓLIDO'}</button></div>
                                                 <select value={data.hjTextBlendMode2} onChange={(e) => handleInputChange('hjTextBlendMode2', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">{BLEND_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>Fusión TALLERES: {opt.label}</option>)}</select>
                                             </div>
                                         )}
 
                                         <div className="bg-slate-700/30 p-2 rounded space-y-2 mb-4 border border-slate-600"><label className="text-xs font-bold text-blue-300">Posición de Escudos/Cinta</label><div className="flex gap-2"><select value={data.hjLogosPosX} onChange={(e) => handleInputChange('hjLogosPosX', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs text-center font-bold"><option value="right">Derecha</option><option value="left">Izquierda</option></select></div></div>
-                                        <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600"><label className="text-xs font-bold text-slate-400 flex justify-between items-center">INFO CENTRAL <Trophy size={12}/></label><select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTournamentChange(e.target.value)}><option value="">Cambiar Torneo...</option>{LEAGUES_DB.map((l, i) => <option key={i} value={l.url}>{l.name}</option>)}</select>{activeTemplate === TEMPLATES.RESULTADO_FINAL && <div className="flex gap-2 mt-2"><input type="text" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 1" /><input type="text" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 2" /></div>}</div>
+                                        <div className="bg-slate-800 p-2 rounded space-y-2 border border-slate-600"><label className="text-xs font-bold text-slate-400 flex justify-between items-center">INFO CENTRAL <Trophy size={12}/></label>{activeTemplate === TEMPLATES.RESULTADO_FINAL && <button onClick={applyLastFirstDivisionPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-[10px] font-bold">CARGAR ÚLTIMO RESULTADO</button>}<select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTournamentChange(e.target.value)}><option value="">Cambiar Torneo...</option>{LEAGUES_DB.map((l, i) => <option key={i} value={l.url}>{l.name}</option>)}</select>{activeTemplate === TEMPLATES.RESULTADO_FINAL && <div className="flex gap-2 mt-2"><input type="text" value={data.resScore1} onChange={(e) => handleInputChange('resScore1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 1" /><input type="text" value={data.resScore2} onChange={(e) => handleInputChange('resScore2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-lg text-center font-bold font-talleres" placeholder="Goles Eq 2" /></div>}</div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="bg-slate-700/30 p-2 rounded space-y-2"><label className="text-[10px] font-bold text-blue-300 uppercase">EQUIPO 1 {activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL ? '(ARRIBA)' : ''}</label><select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTeamChange(1, e.target.value)}><option value="">Cambiar Escudo...</option>{TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}</select><div className="flex items-center justify-between gap-1 mt-1"><span className="text-[9px]">Grad:</span><input type="color" value={data.resColor1A} onChange={(e) => handleInputChange('resColor1A', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Superior" /><input type="color" value={data.resColor1B} onChange={(e) => handleInputChange('resColor1B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" /><input type="color" value={data.resColor1C} onChange={(e) => handleInputChange('resColor1C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" /></div>{activeTemplate !== TEMPLATES.HOY_JUEGA && <input type="text" value={data.resTeam1Name} onChange={(e) => handleInputChange('resTeam1Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />}</div>
                                             <div className="bg-slate-700/30 p-2 rounded space-y-2"><label className="text-[10px] font-bold text-red-300 uppercase">EQUIPO 2 {activeTemplate === TEMPLATES.HOY_JUEGA || activeTemplate === TEMPLATES.RESULTADO_FINAL ? '(ABAJO)' : ''}</label><select className="w-full bg-slate-900 p-1 rounded text-[10px]" onChange={(e) => handleTeamChange(2, e.target.value)}><option value="">Cambiar Escudo...</option>{TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}</select><div className="flex items-center justify-between gap-1 mt-1"><span className="text-[9px]">Grad:</span><input type="color" value={data.resColor2A} onChange={(e) => handleInputChange('resColor2A', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Superior" /><input type="color" value={data.resColor2B} onChange={(e) => handleInputChange('resColor2B', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Medio" /><input type="color" value={data.resColor2C} onChange={(e) => handleInputChange('resColor2C', e.target.value)} className="w-5 h-6 rounded cursor-pointer bg-transparent border-none p-0" title="Color Inferior" /></div>{activeTemplate !== TEMPLATES.HOY_JUEGA && <input type="text" value={data.resTeam2Name} onChange={(e) => handleInputChange('resTeam2Name', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-xs font-bold uppercase mt-2" placeholder="Nombre" />}</div>
@@ -1226,7 +1970,7 @@
 
                     <div ref={containerRef} className={`flex-1 flex items-center justify-center relative transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50 bg-black' : 'bg-slate-950/50 p-2 md:p-4 overflow-auto'}`} onPaste={handleGlobalPaste} tabIndex="0">
                         <div className="absolute top-4 right-4 z-50 flex gap-2"><button onClick={() => setIsPreviewMode(!isPreviewMode)} className="bg-black/50 hover:bg-blue-600 text-white p-3 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/20">{isPreviewMode ? <Minimize2 size={24} /> : <Eye size={24} />}</button></div>
-                        <div ref={wrapperRef} style={{ transform: isPreviewMode ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.95})` : `scale(${previewScale})`, transformOrigin: 'center' }} className="shadow-2xl">
+                        <div ref={wrapperRef} style={{ transform: isPreviewMode ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.9})` : `scale(${previewScale})`, transformOrigin: 'center' }} className="shadow-2xl">
                             <div ref={canvasRef} style={{ width: '1080px', height: '1350px', backgroundColor: THEME.bg }} className="overflow-hidden shadow-2xl relative bg-[#021024]">{renderActiveTemplate()}</div>
                         </div>
                         {!isPreviewMode && <button onClick={handleDownload} disabled={loading} className="absolute bottom-6 right-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 z-30 transition-transform hover:scale-105 active:scale-95">{loading ? 'PROCESANDO...' : <><Download size={20} /> DESCARGAR HD</>}</button>}
