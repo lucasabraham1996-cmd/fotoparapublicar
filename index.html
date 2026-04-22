@@ -1,4 +1,6 @@
 
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -172,37 +174,40 @@
             return new Blob([u8arr], { type: mime });
         };
 
-        const resizeBlobIfNeeded = async (blob, maxWidth = 960, maxHeight = 1200) => {
-            const imgUrl = URL.createObjectURL(blob);
-            try {
-                const img = await new Promise((resolve, reject) => {
-                    const instance = new Image();
-                    instance.onload = () => resolve(instance);
-                    instance.onerror = reject;
-                    instance.src = imgUrl;
-                });
-                const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
-                if (ratio >= 0.999) return blob;
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.round(img.width * ratio);
-                canvas.height = Math.round(img.height * ratio);
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                return await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.96));
-            } finally {
-                URL.revokeObjectURL(imgUrl);
-            }
-        };
-
-        const downloadBlob = (blob, filename) => {
+        const downloadBlob = async (blob, filename) => {
+            const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
             const blobUrl = URL.createObjectURL(blob);
+
+            try {
+                if (isMobileDevice && navigator.share && window.File) {
+                    const file = new File([blob], filename, { type: blob.type || 'image/png' });
+                    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: filename, text: 'Gráfica generada desde la app' });
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+                        return;
+                    }
+                }
+            } catch (shareError) {
+                console.warn('Compartir en móvil no disponible, se intentará descarga directa.', shareError);
+            }
+
             const link = document.createElement('a');
             link.href = blobUrl;
             link.download = filename;
+            link.rel = 'noopener';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+
+            if (isMobileDevice) {
+                setTimeout(() => {
+                    if (document.visibilityState === 'visible') {
+                        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+                    }
+                }, 180);
+            }
+
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
         };
 
         const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
@@ -370,10 +375,34 @@
         const LEAGUES_DB = [
             { name: 'Copa Argentina', url: 'https://i.postimg.cc/Bns1nm50/Copa-Argentina.png' },
             { name: 'Copa Córdoba', url: 'https://i.postimg.cc/523QY8pV/Copa-Cordoba.png' },
-            { name: 'Femenino', url: 'https://i.postimg.cc/nhZQh3KZ/Femenino.png' },
+            { name: 'Femenino', url: 'https://i.postimg.cc/5ymRy8h6/Femenino.png' },
             { name: 'Liga Profesional', url: 'https://i.postimg.cc/FsQ44Q07/Liga-2026.png' },
-            { name: 'Torneo Proyección', url: 'https://i.postimg.cc/RZRJ6wGm/Torneo-Proyeccion.png' }
+            { name: 'Torneo Proyección', url: 'https://i.postimg.cc/gjKTj3Cr/Torneo-Proyeccion.png' }
         ];
+
+        const SELECTABLE_PIECES = [
+            { name: 'Banderas', url: 'https://i.postimg.cc/9fZdpCL2/banderas.png' },
+            { name: 'Bombos', url: 'https://i.postimg.cc/wBLXVgwH/bombos.png' },
+            { name: 'Camiseta', url: 'https://i.postimg.cc/6Qnr0tMt/Camiseta.png' },
+            { name: 'Camiseta 2', url: 'https://i.postimg.cc/1zwGHsvm/camiseta2.png' },
+            { name: 'Convocados', url: 'https://i.postimg.cc/R0K7R4gq/Convocados.png' },
+            { name: 'Equipo', url: 'https://i.postimg.cc/mrCYwBmt/equipo.png' },
+            { name: 'Equipo 2', url: 'https://i.postimg.cc/W4gGnT5d/equipo2.png' },
+            { name: 'Festejo', url: 'https://i.postimg.cc/Zqp8c4wB/festejo.png' },
+            { name: 'Fiesta', url: 'https://i.postimg.cc/W4gGnT5q/fiesta.png' },
+            { name: 'Gorra', url: 'https://i.postimg.cc/Zqp8c4wN/gorra.png' },
+            { name: 'Grande', url: 'https://i.postimg.cc/JhZNqMpJ/grande.png' },
+            { name: 'Grito', url: 'https://i.postimg.cc/k5KQcqTW/grito.png' },
+            { name: 'Hinchas', url: 'https://i.postimg.cc/PqYW4TSm/Hinchas.png' },
+            { name: 'Hinchas 2', url: 'https://i.postimg.cc/tgW35pBd/hinchass.png' },
+            { name: 'Hinchas 3', url: 'https://i.postimg.cc/TwxrNFsy/hinchassss.png' },
+            { name: 'Hinchita', url: 'https://i.postimg.cc/gJpvtQ7x/hinchita.png' },
+            { name: 'Suplente', url: 'https://i.postimg.cc/xCQKphZJ/Suplente.png' },
+            { name: 'Tévez', url: 'https://i.postimg.cc/9M2GgKkw/tevez.png' },
+            { name: 'Fondo Gemini', url: 'https://i.postimg.cc/TwGVLSX6/Gemini-Generated-Image-cv9tircv9tircv9t.png' }
+        ];
+
+        const DEFAULT_EDITOR_BG = 'https://i.postimg.cc/TwGVLSX6/Gemini-Generated-Image-cv9tircv9tircv9t.png';
 
         const THEME = {
             bg: '#021024',
@@ -448,8 +477,9 @@
             const [imagePos, setImagePos] = useState({ x: 0, y: 0 });
             const [imageScale, setImageScale] = useState(1);
             const [imageFilter, setImageFilter] = useState('');
-            const [imageFit, setImageFit] = useState('contain');
+            const [imageFit, setImageFit] = useState('cover');
             const [imageReady, setImageReady] = useState(false);
+            const [selectedPieceUrl, setSelectedPieceUrl] = useState('');
 
             const [data, setData] = useState({
                 useBold: true,
@@ -504,15 +534,18 @@
                 hjTextLine2: 'TALLERES',
                 hjTextColor2: '#FFFFFF',
                 hjTextHollow2: false,
-                hjTextBlendMode1: 'normal',
-                hjTextBlendMode2: 'normal',
+                hjTextBlendMode1: 'overlay',
+                hjTextBlendMode2: 'soft-light',
+                hjTextCenterX: 540,
+                hjTextY1: 598,
+                hjTextY2: 722,
                 hjArrowBlendMode: 'normal',
                 hjArrowColor: '#2563EB',
                 hjArrowUrl: '',
                 results6Title: 'JUVENILES',
                 results6Subtitle: 'Jornada 7 vs. Colón',
                 results6Badge: '#VAMOSLOSPIBES',
-                results6Bg: 'https://i.postimg.cc/TwGVLSX6/Gemini-Generated-Image-cv9tircv9tircv9t.png',
+                results6Bg: DEFAULT_EDITOR_BG,
                 results6Rows: [
                     { division: 'CUARTA DIVISIÓN', localia: 'L', team1: 'TALLERES', score: '1-1', team2: 'COLÓN', team1Logo: null, team2Logo: null },
                     { division: 'QUINTA DIVISIÓN', localia: 'L', team1: 'TALLERES', score: '1-3', team2: 'COLÓN', team1Logo: null, team2Logo: null },
@@ -522,11 +555,17 @@
                     { division: 'NOVENA DIVISIÓN', localia: 'V', team1: 'COLÓN', score: '0-4', team2: 'TALLERES', team1Logo: null, team2Logo: null }
                 ],
                 othersTitle: '',
-                othersSubtitle: 'RESERVA',
+                othersSubtitle: 'TORNEO PROYECCIÓN',
                 othersComp: 'ÚLTIMO RESULTADO',
-                othersLogoWhite: false,
                 othersTournamentType: 'reserva',
                 othersTournamentLogo: null,
+                othersLogoWhite: false,
+                othersInfoWhite: false,
+                gradientEnabled: false,
+                gradientColor1: '#191b22',
+                gradientColor2: '#2936e0',
+                gradientInvert: false,
+                imageSmooth: false,
                 othersTeam1Name: 'TALLERES',
                 othersTeam2Name: 'GIMNASIA MENDOZA',
                 othersTeam1Logo: null,
@@ -612,6 +651,41 @@
                 return CLUB_ABBR[clean] || clean.split(' ').map(p => p[0]).join('').slice(0,4);
             };
 
+            const getHoyTextCenterX = (isLeftSide) => {
+                const ribbonWidth = 88;
+                const logosBlockWidth = 214;
+                const outerMargin = 24;
+                const occupiedOnOneSide = ribbonWidth + logosBlockWidth + outerMargin;
+                const freeStart = isLeftSide ? occupiedOnOneSide : outerMargin;
+                const freeEnd = isLeftSide ? 1080 - outerMargin : 1080 - occupiedOnOneSide;
+                return (freeStart + freeEnd) / 2;
+            };
+
+            const getPositionsTeamDisplay = (team = '') => {
+                const map = {
+                    'Defensa y Justicia': 'Def. y Justicia',
+                    'Independiente Rivadavia': 'Indep. Rivadavia',
+                    'Central Córdoba': 'Central Córdoba',
+                    'Atlético Tucumán': 'Atl. Tucumán',
+                    'Barracas Central': 'Barracas Central',
+                    'Rosario Central': 'Rosario Central',
+                    'Boca Juniors': 'Boca Juniors',
+                    'River Plate': 'River Plate',
+                    'San Luis FC': 'San Luis FC',
+                    'Gimnasia Mza': 'Gimnasia Mza',
+                    'Gimnasia LP': 'Gimnasia LP'
+                };
+                return map[team] || team;
+            };
+
+            const getPositionsTeamClass = (team = '') => {
+                const len = getPositionsTeamDisplay(team).length;
+                if (len >= 19) return 'text-[0.74rem]';
+                if (len >= 16) return 'text-[0.82rem]';
+                if (len >= 13) return 'text-[0.9rem]';
+                return 'text-[0.98rem]';
+            };
+
             const syncResults6Logos = (rows) => rows.map(row => ({
                 ...row,
                 team1Logo: getTeamLogo(row.team1),
@@ -630,7 +704,10 @@
                     resScore1: '',
                     resScore2: '',
                     resTournamentLogo: leagueLogo || prev.resTournamentLogo,
-                    resTournamentName: 'LIGA PROFESIONAL'
+                    resTournamentName: 'LIGA PROFESIONAL',
+                    hjTextCenterX: 540,
+                    hjTextY1: 598,
+                    hjTextY2: 722
                 }));
             };
 
@@ -677,7 +754,6 @@
                         othersTournamentType: 'femenino',
                         othersSubtitle: 'FEMENINO',
                         othersComp: 'ÚLTIMO RESULTADO',
-                        othersLogoWhite: false,
                         othersTournamentLogo: femaleLogo,
                         othersTeam1Name: 'SAN LORENZO',
                         othersTeam2Name: 'TALLERES',
@@ -696,7 +772,6 @@
                         othersTournamentType: 'otro',
                         othersSubtitle: 'OTRO',
                         othersComp: 'RESULTADO',
-                        othersLogoWhite: false,
                         othersTournamentLogo: genericLogo,
                         othersTeam1Name: 'EQUIPO 1',
                         othersTeam2Name: 'EQUIPO 2',
@@ -713,9 +788,8 @@
                     ...prev,
                     othersTournamentType: 'reserva',
                     othersTitle: '',
-                othersSubtitle: 'RESERVA',
+                othersSubtitle: 'TORNEO PROYECCIÓN',
                     othersComp: 'ÚLTIMO RESULTADO',
-                    othersLogoWhite: false,
                     othersTournamentLogo: reserveLogo,
                     othersTeam1Name: 'TALLERES',
                     othersTeam2Name: 'GIMNASIA MENDOZA',
@@ -742,7 +816,7 @@
                         ]
                     },
                     reserva: {
-                        title: 'TABLA DE POSICIONES', subtitle: 'RESERVA', logo: reserveLogo,
+                        title: 'TABLA DE POSICIONES', subtitle: 'TORNEO PROYECCIÓN', logo: reserveLogo,
                         rows: [
                             ['Vélez',22,16,9],['Rosario Central',17,5,9],['Talleres',16,4,9],['Racing',15,4,9],['Gimnasia LP',14,4,9],['River Plate',14,4,9],
                             ['Instituto',14,3,9],['AAAJ',14,3,9],['Atlético Tucumán',14,1,9],['Unión',11,-2,9],['San Lorenzo',11,-4,9],['Tigre',9,-2,9],
@@ -884,8 +958,8 @@
                         const { width, height } = containerRef.current.getBoundingClientRect();
                         const scaleX = (width - 40) / 1080;
                         const scaleY = (height - 40) / 1350;
-                        const scale = Math.min(scaleX, scaleY, 0.72);
-                        setPreviewScale(Math.max(scale, 0.16));
+                        const scale = Math.min(scaleX, scaleY, 0.78);
+                        setPreviewScale(Math.max(scale, 0.18));
                     }
                 };
                 window.addEventListener('resize', handleResize);
@@ -955,15 +1029,24 @@
                 setImageReady(false);
                 setImage(base64OrUrl);
                 setImagePos({ x: 0, y: 0 });
-                setImageScale(1.08);
-                setImageFit('contain');
+                setImageScale(1);
+                setImageFit('cover');
                 setImageFilter('');
+            };
+
+            const handlePresetPieceSelect = async (url) => {
+                setLoading(true);
+                setSelectedPieceUrl(url);
+                const safeSource = await convertUrlToBase64(url);
+                applyImageToCanvas(safeSource || url);
+                setLoading(false);
             };
 
             const handleImageUpload = async (e) => {
                 const file = e.target.files[0];
                 if (file) {
                     const dataUrl = await readFileAsDataUrl(file);
+                    setSelectedPieceUrl('');
                     applyImageToCanvas(dataUrl);
                 }
             };
@@ -973,6 +1056,7 @@
                 if (url) {
                     setLoading(true);
                     const base64 = await convertUrlToBase64(url);
+                    setSelectedPieceUrl('');
                     applyImageToCanvas(base64 || url);
                     setLoading(false);
                 }
@@ -981,10 +1065,11 @@
             const handleClearImage = () => {
                 setImage(null);
                 setImageReady(true);
+                setSelectedPieceUrl('');
                 setImagePos({ x: 0, y: 0 });
                 setImageScale(1);
                 setImageFilter('');
-                setImageFit('contain');
+                setImageFit('cover');
             };
 
             const handlePasteButton = async () => {
@@ -997,6 +1082,7 @@
                         if (imageTypes.length > 0) {
                             const blob = await clipboardItem.getType(imageTypes[0]);
                             const dataUrl = await readFileAsDataUrl(blob);
+                            setSelectedPieceUrl('');
                             applyImageToCanvas(dataUrl);
                             foundImage = true;
                             break;
@@ -1016,6 +1102,7 @@
                     if (items[i].type.indexOf('image') !== -1) {
                         const blob = items[i].getAsFile();
                         const dataUrl = await readFileAsDataUrl(blob);
+                        setSelectedPieceUrl('');
                         applyImageToCanvas(dataUrl);
                         break;
                     }
@@ -1089,7 +1176,7 @@
                         try {
                             blob = await window.htmlToImage.toBlob(canvasRef.current, {
                                 cacheBust: true,
-                                pixelRatio: 2.0,
+                                pixelRatio: 2.5,
                                 backgroundColor: THEME.bg,
                                 style: commonStyle,
                                 skipAutoScale: true,
@@ -1102,7 +1189,7 @@
 
                     if (!blob && window.html2canvas) {
                         const canvas = await window.html2canvas(canvasRef.current, {
-                            scale: isMobile ? 1.6 : 2.0,
+                            scale: isMobile ? 2.2 : 2.6,
                             useCORS: true,
                             allowTaint: false,
                             backgroundColor: THEME.bg,
@@ -1110,6 +1197,8 @@
                             logging: false,
                             removeContainer: true,
                             foreignObjectRendering: false,
+                            scrollX: 0,
+                            scrollY: -window.scrollY,
                             onclone: (doc) => {
                                 const clonedRoot = doc.querySelector('#root');
                                 if (clonedRoot) {
@@ -1127,7 +1216,7 @@
                     if (!blob && window.htmlToImage) {
                         const dataUrl = await window.htmlToImage.toPng(canvasRef.current, {
                             cacheBust: true,
-                            pixelRatio: isMobile ? 1.5 : 1.75,
+                            pixelRatio: isMobile ? 1.75 : 2,
                             backgroundColor: THEME.bg,
                             style: commonStyle,
                             skipAutoScale: true,
@@ -1138,11 +1227,10 @@
 
                     if (!blob) throw new Error('No se pudo generar la imagen.');
                     wrapperRef.current.style.transform = originalTransform;
-                    blob = await resizeBlobIfNeeded(blob, 960, 1200);
-                    downloadBlob(blob, fileName);
+                    await downloadBlob(blob, fileName);
                 } catch (err) {
                     console.error('Error capturando:', err);
-                    alert('Error al descargar. Probá nuevamente y, si estás en móvil, usá Chrome actualizado.');
+                    alert('Error al descargar. Probá nuevamente. En móvil también podés usar el botón Guardar/Compartir cuando aparezca.');
                     if (wrapperRef.current) wrapperRef.current.style.transform = `scale(${previewScale})`;
                 } finally {
                     setLoading(false);
@@ -1173,6 +1261,7 @@
                                 objectFit: imageFit,
                                 transform: `translate(${imagePos.x}px, ${imagePos.y}px) scale(${imageScale})`,
                                 filter: imageFilter,
+                                imageRendering: data.imageSmooth ? 'auto' : 'auto',
                                 objectPosition: 'center center'
                             }}
                         />
@@ -1193,62 +1282,101 @@
                 </div>
                 );
             };
-            const PatternFusionText = ({ textValue, y, fontSize, blendMode = 'normal', hollow = false, fallbackColor = '#FFFFFF', strokeWidth = 18, letterSpacing = 6, shadowOpacity = 0.78 }) => {
-                const safeId = textValue.replace(/[^a-zA-Z0-9]/g, '') || 'TEXT';
-                const patternId = `fusion-${safeId}-${fontSize}-${blendMode}-${hollow ? 'h' : 's'}`;
-                const imgHref = image || data.hjOverlayUrl || '';
-                const preserve = imageFit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet';
-                const patternTransform = `translate(${imagePos.x} ${imagePos.y}) translate(540 675) scale(${imageScale}) translate(-540 -675)`;
-                const preset = getFusionPreset(blendMode);
-                const fused = blendMode !== 'normal' && !!imgHref;
-                const toneFilter = [imageFilter || '', 'contrast(1.16)', 'brightness(1.08)', 'saturate(1.1)', preset.extraFilter || ''].filter(Boolean).join(' ');
-                const shadowY = Math.max(8, Math.round(fontSize * 0.055));
-                const shadowBlur = Math.max(8, Math.round(fontSize * 0.04));
-                const solidStrokeWidth = Math.max(4, Math.round(fontSize * 0.028));
-                const hollowStrokeWidth = Math.max(8, Math.round(fontSize * 0.056));
-                const mainStrokeWidth = hollow ? hollowStrokeWidth : (fused ? solidStrokeWidth : Math.max(3, Math.round(fontSize * 0.02)));
-                const fillValue = hollow ? 'transparent' : (fused ? `url(#${patternId})` : fallbackColor);
-                const strokeValue = fused ? `url(#${patternId})` : fallbackColor;
 
+            const PatternFusionText = ({ textValue, y, fontSize, blendMode = 'normal', hollow = false, fallbackColor = '#FFFFFF', strokeWidth = 18, letterSpacing = 6, shadowOpacity = data.hjShadow ?? 0.85, centerX = 540 }) => {
+                const imageLayer = image || data.hjOverlayUrl || '';
+                const mixMode = getSafeTextBlendMode(blendMode);
+                const bgSize = `${Math.max(100, Math.round(100 * imageScale))}% auto`;
+                const bgPos = `calc(50% + ${imagePos.x}px) calc(50% + ${imagePos.y}px)`;
+                const shadow = shadowOpacity > 0 ? `0 0 16px rgba(0,0,0,${Math.min(0.7, shadowOpacity * 0.72)}), 0 12px 28px rgba(0,0,0,${shadowOpacity})` : 'none';
+                const solidStroke = hollow ? `${Math.max(2, strokeWidth * 0.34)}px ${fallbackColor}` : '0px transparent';
                 return (
-                    <svg className="absolute inset-0 w-full h-full overflow-visible" viewBox="0 0 1080 1350" preserveAspectRatio="none">
-                        <defs>
-                            <pattern id={patternId} patternUnits="userSpaceOnUse" width="1080" height="1350">
-                                {imgHref ? (
-                                    <image href={imgHref} x="0" y="0" width="1080" height="1350" preserveAspectRatio={preserve} transform={patternTransform} style={{ filter: toneFilter }} />
-                                ) : (
-                                    <rect x="0" y="0" width="1080" height="1350" fill={fallbackColor} />
-                                )}
-                            </pattern>
-                            <filter id={`${patternId}-shadow`} x="-30%" y="-30%" width="160%" height="180%">
-                                <feDropShadow dx="0" dy={shadowY} stdDeviation={shadowBlur} floodColor="rgba(0,0,0,1)" floodOpacity={shadowOpacity} />
-                            </filter>
-                        </defs>
-
-                        <text
-                            x="540"
-                            y={y}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fontFamily="Azonix, sans-serif"
-                            fontSize={fontSize}
-                            letterSpacing={letterSpacing}
-                            filter={`url(#${patternId}-shadow)`}
-                            paintOrder="stroke fill"
-                            fill={fillValue}
-                            stroke={strokeValue}
-                            strokeWidth={mainStrokeWidth}
-                            strokeLinejoin="round"
-                            strokeLinecap="round"
-                        >
-                            {textValue}
-                        </text>
-                    </svg>
+                    <div
+                        className="absolute pointer-events-none whitespace-nowrap uppercase"
+                        style={{
+                            left: `${centerX}px`,
+                            top: `${y}px`,
+                            transform: 'translate(-50%, -50%)',
+                            fontFamily: 'Azonix, sans-serif',
+                            fontSize: `${fontSize}px`,
+                            letterSpacing: `${letterSpacing}px`,
+                            lineHeight: 1,
+                            isolation: 'isolate'
+                        }}
+                    >
+                        {!hollow && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    color: fallbackColor,
+                                    WebkitTextStroke: '0px transparent',
+                                    textShadow: shadow,
+                                    mixBlendMode: 'normal',
+                                    opacity: 1
+                                }}
+                            >
+                                {textValue}
+                            </div>
+                        )}
+                        {imageLayer && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    color: 'transparent',
+                                    backgroundImage: `url(${imageLayer})`,
+                                    backgroundSize: bgSize,
+                                    backgroundPosition: bgPos,
+                                    backgroundRepeat: 'no-repeat',
+                                    WebkitBackgroundClip: 'text',
+                                    backgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    mixBlendMode: mixMode,
+                                    filter: 'none',
+                                    opacity: hollow ? 1 : 0.82,
+                                    textShadow: shadow,
+                                    WebkitTextStroke: hollow ? solidStroke : '0px transparent'
+                                }}
+                            >
+                                {textValue}
+                            </div>
+                        )}
+                        {hollow && !imageLayer && (
+                            <div style={{ position: 'absolute', inset: 0, color: 'transparent', WebkitTextStroke: solidStroke, textShadow: shadow }}>
+                                {textValue}
+                            </div>
+                        )}
+                    </div>
                 );
             };
 
             const LogoComponent = () => (
                 <CorsImg src={data.logoBase64 || THEME.logo} alt="Logo" className="h-24 w-auto object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]" />
+            );
+
+            const formatDivisionLabel = (value = '') => {
+                const raw = String(value).trim();
+                const key = normalizeName(raw);
+                const map = {
+                    'cuarta division': '4ta división',
+                    'quinta division': '5ta división',
+                    'sexta division': '6ta división',
+                    'septima division': '7ma división',
+                    'octava division': '8va división',
+                    'novena division': '9na división'
+                };
+                return map[key] || raw;
+            };
+
+            const SideRibbon = ({ text, side = 'left', fontSize = 48 }) => (
+                <div className={`absolute top-0 ${side === 'left' ? 'left-0 border-r' : 'right-0 border-l'} w-[5.5rem] h-full bg-[#051024] z-40 border-[#1D4ED8]/30 shadow-[0_0_22px_rgba(0,0,0,0.42)] overflow-hidden`}>
+                    <svg width="88" height="1350" viewBox="0 0 88 1350" className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                        <g transform="translate(44 675) rotate(-90)">
+                            <text x="0" y="0" textAnchor="middle" dominantBaseline="middle" fontFamily="Azonix, sans-serif" fontSize={fontSize} letterSpacing="6" fill="#1D4ED8">{text}</text>
+                        </g>
+                    </svg>
+                </div>
             );
 
             const renderEstadisticas = () => {
@@ -1313,6 +1441,7 @@
                 return (
                     <div className="w-[1080px] h-[1350px] relative flex flex-col bg-[#021024] overflow-hidden">
                         <BackgroundImage />
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}
                         <div className={`absolute inset-0 ${gradientClass}`} />
                         <div className={`relative z-10 w-full h-full flex flex-col ${alignClass} pt-20 pb-16`}>
                             <div className={`flex flex-col ${textColClass} mb-10 ${textColAlign} overflow-visible`}>
@@ -1386,6 +1515,7 @@
                 return (
                     <div className="w-[1080px] h-[1350px] relative flex flex-col bg-[#021024]">
                         <BackgroundImage />
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}
                         <div className="absolute inset-0 bg-[#021024]/80 mix-blend-multiply" />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-transparent to-transparent" />
                         <div className="relative z-10 p-14 h-full flex flex-col">
@@ -1415,7 +1545,8 @@
 
             const renderNoticiaEspecial = () => (
                 <div className="w-[1080px] h-[1350px] relative flex items-center justify-center bg-[#021024] canvas-target">
-                    <div className="absolute inset-0 z-0 opacity-30"><BackgroundImage /><div className="absolute inset-0 backdrop-grayscale" /></div>
+                    <div className="absolute inset-0 z-0 opacity-30"><BackgroundImage />
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}<div className="absolute inset-0 backdrop-grayscale" /></div>
                     <div className="relative z-10 w-full h-full flex p-16 items-stretch">
                         <div className="w-[45%] flex flex-col justify-center items-start pr-10 border-r-4 border-blue-600" style={{borderColor: THEME.accent}}><h1 className={`text-[6rem] font-azonix leading-[0.9] uppercase drop-shadow-2xl text-left ${titleGradientClass}`} style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>{data.specialTitle}</h1></div>
                         <div className="w-[55%] flex flex-col pl-12 justify-center h-full"><div className="text-white text-3xl font-azonix leading-tight tracking-wide whitespace-pre-wrap drop-shadow-md">{data.specialBody}</div></div>
@@ -1427,6 +1558,7 @@
             const renderNoticiaComun = () => (
                 <div className="w-[1080px] h-[1350px] relative bg-[#021024] canvas-target">
                     <BackgroundImage />
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#021024] via-[#021024]/80 to-transparent via-30%" />
                     <div className="absolute top-10 right-10 z-20 drop-shadow-lg"><LogoComponent /></div>
                     <div className="relative z-10 w-full h-full flex flex-col justify-end pb-20 px-12 text-center">
@@ -1439,33 +1571,38 @@
 
             const renderFormacion = () => {
                 const fechaStr = getFormattedMatchInfo();
+                const players = [...(data.formationList || [])].slice(0, 11);
                 return (
                     <div className="w-[1080px] h-[1350px] relative bg-[#021024] flex flex-col items-center">
-                        <div className="absolute inset-0 z-0"><BackgroundImage /><div className="absolute inset-0 bg-[#021024]/60 mix-blend-multiply" /></div>
+                        <div className="absolute inset-0 z-0"><BackgroundImage />{data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}<div className="absolute inset-0 bg-[#021024]/60 mix-blend-multiply" /></div>
                         <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none"><div className="w-[80%] h-[80%] bg-white rounded-full blur-3xl"></div></div>
-                        <div className="relative z-10 w-full h-full flex flex-col items-center pt-16 pb-8 px-12">
-                            <h3 className={`text-white font-azonix tracking-[0.3em] text-xl uppercase mb-6 border-b-2 pb-2 px-12 flex-none ${fontWeightClass}`}>{fechaStr}</h3>
-                            <h1 className="text-[7rem] font-azonix uppercase mb-4 leading-none tracking-tighter text-center flex-none"><span className={titleGradientClass}>FORMACIÓN</span> <span className={accentGradientClass}>INICIAL</span></h1>
-                            <div className="flex flex-col items-center flex-grow justify-center w-full gap-4 mt-4">
-                                {data.formationList.slice(0, 11).map((player, idx) => <div key={idx} className="text-center w-full relative group flex items-center justify-center gap-8 h-[7%]"><span className={`text-[6.5rem] font-talleres leading-none ${fontWeightClass}`} style={{ color: THEME.accent }}>{player.number}</span><span className="text-[3.5rem] font-azonix text-white tracking-widest drop-shadow-lg uppercase leading-none translate-y-3">{abbreviateName(player.name)}</span></div>)}
+                        <div className="relative z-10 w-full h-full flex flex-col items-center pt-14 pb-6 px-10">
+                            <h3 className={`text-white font-azonix tracking-[0.24em] text-[18px] uppercase mb-4 border-b-2 pb-2 px-10 flex-none ${fontWeightClass}`}>{fechaStr}</h3>
+                            <h1 className="text-[6.1rem] font-azonix uppercase mb-3 leading-none tracking-tight text-center flex-none"><span className={titleGradientClass}>FORMACIÓN</span> <span className={accentGradientClass}>INICIAL</span></h1>
+                            <div className="flex flex-col items-center flex-grow justify-center w-full gap-[4px] mt-0">
+                                {players.map((player, idx) => {
+                                    const size = player.name.length > 20 ? '1.78rem' : player.name.length > 15 ? '1.95rem' : '2.15rem';
+                                    return <div key={idx} className="text-center w-full flex items-center justify-center gap-5 h-[64px]"><span className={`text-[4.5rem] font-talleres leading-none ${fontWeightClass}`} style={{ color: THEME.accent }}>{player.number}</span><span className="font-azonix text-white uppercase leading-none drop-shadow-lg" style={{ fontSize: size, letterSpacing: '0.09em', maxWidth: '760px' }}>{abbreviateName(player.name)}</span></div>;
+                                })}
                             </div>
-                            <div className="mt-8 flex flex-col items-center gap-2 flex-none"><div className="bg-[#021024] px-8 py-3 rounded-full border border-blue-900 shadow-xl"><span className={`text-2xl text-white font-azonix tracking-widest uppercase drop-shadow-lg ${fontWeightClass}`}>DT {data.dtName}</span></div><LogoComponent /></div>
+                            <div className="mt-4 flex flex-col items-center gap-2 flex-none"><div className="bg-[#021024] px-7 py-2 rounded-full border border-blue-900 shadow-xl"><span className={`text-[1.15rem] text-white font-azonix tracking-[0.2em] uppercase drop-shadow-lg ${fontWeightClass}`}>DT {data.dtName}</span></div><LogoComponent /></div>
                         </div>
                     </div>
                 );
             };
+
             const renderHoyJuega = () => {
                 const isLeft = data.hjLogosPosX === 'left';
-                const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
                 const logosXClass = isLeft ? 'left-[1.2rem]' : 'right-[1.2rem]';
                 const logosYClass = 'bottom-[4.2rem]';
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
                 const infoYClass = 'bottom-12';
                 const boxPaddingClass = isLeft ? 'pl-[3.8rem] pr-2' : 'pr-[3.8rem] pl-2';
-
+                const visualCenterX = Number.isFinite(Number(data.hjTextCenterX)) ? Number(data.hjTextCenterX) : 540;
                 return (
                     <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste} style={{ isolation: 'isolate' }}>
                         <BackgroundImage />
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}
                         <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20"><LogoComponent /></div>
 
                         <div className={`absolute ${infoYClass} ${infoXClass} z-50 flex items-center`}>
@@ -1483,13 +1620,11 @@
                             </div>
                         </div>
 
-                        <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
-                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA</div>
-                        </div>
+                        <SideRibbon text="HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA" side={isLeft ? 'left' : 'right'} fontSize={48} />
 
                         <div className="absolute inset-0 z-30 pointer-events-none select-none">
-                            <PatternFusionText textValue={data.hjTextLine1} y={548} fontSize={120} blendMode={data.hjTextBlendMode1} hollow={data.hjTextHollow1} fallbackColor={data.hjTextColor1} strokeWidth={26} letterSpacing={6} />
-                            <PatternFusionText textValue={data.hjTextLine2} y={738} fontSize={138} blendMode={data.hjTextBlendMode2} hollow={data.hjTextHollow2} fallbackColor={data.hjTextColor2} strokeWidth={22} letterSpacing={8} />
+                            <PatternFusionText textValue={data.hjTextLine1} y={Number(data.hjTextY1) || 598} fontSize={112} blendMode={data.hjTextBlendMode1} hollow={data.hjTextHollow1} fallbackColor={data.hjTextColor1} strokeWidth={18} letterSpacing={8} shadowOpacity={0.97} centerX={visualCenterX} />
+                            <PatternFusionText textValue={data.hjTextLine2} y={Number(data.hjTextY2) || 722} fontSize={132} blendMode={data.hjTextBlendMode2} hollow={data.hjTextHollow2} fallbackColor={data.hjTextColor2} strokeWidth={14} letterSpacing={10} shadowOpacity={0.99} centerX={visualCenterX} />
                         </div>
                     </div>
                 );
@@ -1497,22 +1632,16 @@
 
             const renderResultadoFINAL = () => {
                 const isLeft = data.hjLogosPosX === 'left';
-                const ribbonClass = isLeft ? 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r' : 'right-0 shadow-[-10px_0_20px_rgba(0,0,0,0.5)] border-l';
                 const blockXClass = isLeft ? 'left-[4.5rem]' : 'right-[4.5rem]';
                 const blockYClass = 'bottom-[5.2rem]';
                 const infoYClass = 'bottom-12';
                 const infoXClass = isLeft ? 'right-12' : 'left-12';
 
                 return (
-                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste} style={{ isolation: "isolate" }}>
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste} style={{ isolation: 'isolate' }}>
                         <BackgroundImage />
-
-                        <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-40 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
-                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[3rem] tracking-widest uppercase">
-                                RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL
-                            </div>
-                        </div>
-
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}
+                        <SideRibbon text="RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL - RESULTADO FINAL" side={isLeft ? 'left' : 'right'} fontSize={47} />
                         <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20"><LogoComponent /></div>
 
                         <div className={`absolute ${blockYClass} ${blockXClass} flex z-20 drop-shadow-[0_20px_25px_rgba(0,0,0,0.9)] ${isLeft ? 'flex-row' : 'flex-row-reverse'} items-stretch`}>
@@ -1525,18 +1654,10 @@
                                 </div>
                             </div>
 
-                            <div className={`bg-white w-[12rem] h-[24rem] flex flex-col items-center justify-stretch relative overflow-hidden ${isLeft ? 'rounded-r-[2.8rem] border-r-2 border-gray-300' : 'rounded-l-[2.8rem] border-l-2 border-gray-300'}` }>
-                                <div className="h-1/2 flex items-center justify-center w-full relative">
-                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(2px)' }}>
-                                        {data.resScore1}
-                                    </span>
-                                </div>
+                            <div className={`bg-white w-[12rem] h-[24rem] flex flex-col items-center justify-stretch relative overflow-hidden ${isLeft ? 'rounded-r-[2.8rem] border-r-2 border-gray-300' : 'rounded-l-[2.8rem] border-l-2 border-gray-300'}`}>
+                                <div className="h-1/2 flex items-center justify-center w-full relative"><span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(2px)' }}>{data.resScore1}</span></div>
                                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[62%] h-1.5 bg-gray-300 rounded-full"></div>
-                                <div className="h-1/2 flex items-center justify-center w-full relative">
-                                    <span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(2px)' }}>
-                                        {data.resScore2}
-                                    </span>
-                                </div>
+                                <div className="h-1/2 flex items-center justify-center w-full relative"><span className={`text-[9.8rem] font-talleres text-[#04122D] leading-none ${fontWeightClass}`} style={{ transform: 'translateY(2px)' }}>{data.resScore2}</span></div>
                             </div>
                         </div>
 
@@ -1548,53 +1669,44 @@
                     </div>
                 );
             };
-            const renderResultados6 = () => {
-                const ribbonClass = 'left-0 shadow-[10px_0_20px_rgba(0,0,0,0.5)] border-r';
-                const subtitleShort = (data.results6Subtitle || 'Jornada').split(' vs.')[0];
-                const firstRow = (data.results6Rows && data.results6Rows[0]) ? data.results6Rows[0] : null;
-                const homeName = firstRow ? firstRow.team1 : 'TALLERES';
-                const awayName = firstRow ? firstRow.team2 : 'RIVAL';
-                const homeLogo = firstRow ? firstRow.team1Logo : getTeamLogo(homeName);
-                const awayLogo = firstRow ? firstRow.team2Logo : getTeamLogo(awayName);
 
+
+
+            const renderResultados6 = () => {
+                const first = data.results6Rows?.[0] || {};
+                const teamA = first.team1 || 'Talleres';
+                const teamB = first.team2 || 'Rival';
+                const juvenilBackground = image || data.results6Bg;
                 return (
                     <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden">
-                        <div className="absolute inset-0">
-                            <CorsImg src={data.results6Bg} className="w-full h-full object-cover" />
-                        </div>
+                        <div className="absolute inset-0">{juvenilBackground ? <CorsImg src={juvenilBackground} className="w-full h-full object-cover" style={{ transform: `translate(${imagePos.x}px, ${imagePos.y}px) scale(${imageScale})`, filter: imageFilter, objectFit: imageFit }} /> : <div className="w-full h-full bg-[#021024]" />}</div>
                         <div className="absolute inset-0 bg-[#021024]/72" />
-
-                        <div className={`absolute top-0 w-[5.5rem] h-full bg-[#051024] z-30 flex items-center justify-center border-[#1D4ED8]/30 ${ribbonClass}`}>
-                            <div className="whitespace-nowrap transform -rotate-90 text-[#1D4ED8] font-azonix text-[2.35rem] tracking-widest uppercase">{data.results6Badge} - {data.results6Badge} - {data.results6Badge}</div>
-                        </div>
-
+                        <SideRibbon text={`${data.results6Badge} - ${data.results6Badge} - ${data.results6Badge}`} side='left' fontSize={38} />
                         <div className="absolute top-10 right-10 z-30 flex items-center gap-4"><LogoComponent /></div>
-
-                        <div className="absolute left-[106px] right-[74px] top-[96px] bottom-[92px] z-20 rounded-[1.8rem] bg-[#031029]/98 border border-[#1D4ED8]/40 shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
-                            <div className="px-10 pt-10 pb-6 text-center bg-[#031029] border-b border-[#1D4ED8]/30">
-                                <h1 className="text-[4.6rem] leading-none font-azonix uppercase tracking-[0.03em] text-white">{data.results6Title}</h1>
-                                <h2 className="text-[2rem] leading-none mt-5 font-talleres tracking-[0.04em] text-[#dbeafe]" style={{ transform: 'translateY(4px)' }}>{subtitleShort}</h2>
-                                <div className="mt-6 grid grid-cols-[90px_1fr_70px_1fr_90px] items-center gap-4">
-                                    <div className="w-20 h-20 mx-auto flex items-center justify-center">{homeLogo && <CorsImg src={homeLogo} className="w-16 h-16 object-contain" />}</div>
-                                    <div className="text-right text-white font-talleres text-[2.5rem] leading-none tracking-[0.03em]">{abbreviateClub(homeName)}</div>
-                                    <div className="text-center text-[#dbeafe] font-talleres text-[2.2rem] leading-none">X</div>
-                                    <div className="text-left text-white font-talleres text-[2.5rem] leading-none tracking-[0.03em]">{abbreviateClub(awayName)}</div>
-                                    <div className="w-20 h-20 mx-auto flex items-center justify-center">{awayLogo && <CorsImg src={awayLogo} className="w-16 h-16 object-contain" />}</div>
+                        <div className="absolute left-[106px] right-[74px] top-[86px] bottom-[84px] z-20 rounded-[1.8rem] bg-[#03122d]/97 border border-[#1D4ED8]/40 shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
+                            <div className="px-10 pt-8 pb-5 text-center bg-[#041a43] border-b border-[#1D4ED8]/25">
+                                <div className="flex items-center justify-center gap-4">
+                                    <h1 className="text-[4.15rem] leading-none font-azonix uppercase tracking-[0.03em] text-white">JUVENILES LPF</h1>
+                                    <div className="w-16 h-16">{data.positionsTournamentLogo && <CorsImg src={data.positionsTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" />}</div>
+                                </div>
+                                <h2 className="text-[2.35rem] leading-none mt-4 font-talleres tracking-[0.03em] text-[#bfdbfe] uppercase" style={{ transform: 'translateY(3px)' }}>JORNADA 7</h2>
+                                <div className="mt-5 flex items-center justify-center gap-5">
+                                    {getTeamLogo(teamA) && <CorsImg src={getTeamLogo(teamA)} className="w-16 h-16 object-contain" />}
+                                    <div className="font-talleres text-[2.5rem] text-white uppercase tracking-[0.08em] leading-none" style={{ transform: 'translateY(4px)' }}>{teamA.toUpperCase()} VS {teamB.toUpperCase()}</div>
+                                    {getTeamLogo(teamB) && <CorsImg src={getTeamLogo(teamB)} className="w-16 h-16 object-contain" />}
                                 </div>
                             </div>
-
-                            <div className="px-8 py-6 h-[calc(100%-250px)] flex flex-col gap-3 justify-between">
+                            <div className="px-8 py-5 h-[calc(100%-230px)] flex flex-col gap-3 overflow-hidden">
                                 {data.results6Rows.map((row, idx) => (
-                                    <div key={idx} className="rounded-[1.15rem] bg-[#071a3c] border border-[#1D4ED8]/20 px-5 py-3 flex flex-col justify-center min-h-[95px]">
-                                        <div className="text-center text-[#bfdbfe] font-montserrat font-bold text-[1.02rem] uppercase tracking-[0.03em] whitespace-nowrap">{row.division} - {row.localia}</div>
-                                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-5 mt-2">
-                                            <div className="text-right min-w-0">
-                                                <div className="text-white font-talleres text-[2.15rem] uppercase leading-none whitespace-nowrap">{abbreviateClub(row.team1)}</div>
-                                            </div>
-                                            <div className="text-white font-talleres text-[2.25rem] leading-none whitespace-nowrap tracking-[0.04em] text-center" style={{ transform: 'translateY(4px)' }}>{row.score}</div>
-                                            <div className="text-left min-w-0">
-                                                <div className="text-white font-talleres text-[2.15rem] uppercase leading-none whitespace-nowrap">{abbreviateClub(row.team2)}</div>
-                                            </div>
+                                    <div key={idx} className="rounded-[1.15rem] bg-[#07204d] border border-[#1D4ED8]/25 px-5 py-4 flex flex-col justify-between min-h-[118px]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="text-[#bfdbfe] font-azonix text-[1.12rem] uppercase leading-none">{formatDivisionLabel(row.division)}</div>
+                                            {row.localia ? <div className="text-[0.82rem] px-3 py-1 rounded-full border border-[#60a5fa]/30 bg-[#0b2d63] text-[#dbeafe] font-azonix uppercase tracking-[0.08em]">{row.localia}</div> : <div />}
+                                        </div>
+                                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-5 mt-2 px-10">
+                                            <div className="flex items-center justify-center">{row.team1Logo && <CorsImg src={row.team1Logo} className="w-16 h-16 object-contain" />}</div>
+                                            <div className="text-white font-talleres text-[3.55rem] leading-none whitespace-nowrap tracking-[0.06em] text-center" style={{ transform: 'translateY(5px)' }}>{row.score}</div>
+                                            <div className="flex items-center justify-center">{row.team2Logo && <CorsImg src={row.team2Logo} className="w-16 h-16 object-contain" />}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -1606,33 +1718,30 @@
 
             const renderOtrosResultados = () => {
                 const tournamentLabel = data.othersSubtitle || '';
-                const logoTintFilter = data.othersLogoWhite
-                    ? 'brightness(0) invert(1)'
-                    : 'brightness(0) saturate(100%) invert(13%) sepia(53%) saturate(2747%) hue-rotate(205deg) brightness(88%) contrast(104%)';
-                const logoTextColor = data.othersLogoWhite ? '#ffffff' : '#0F3577';
+                const logoFilter = data.othersLogoWhite ? 'brightness(0) invert(1)' : 'brightness(0) saturate(100%) invert(11%) sepia(38%) saturate(2786%) hue-rotate(211deg) brightness(90%) contrast(101%)';
+                const infoClass = data.othersInfoWhite ? 'text-white' : 'text-[#0F3577]';
                 return (
                     <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
                         {image ? <CorsImg src={image} className="absolute inset-0 w-full h-full object-cover" style={{ transform: `translate(${imagePos.x}px, ${imagePos.y}px) scale(${imageScale})`, filter: imageFilter, objectFit: imageFit }} /> : <div className="absolute inset-0 bg-gradient-to-br from-[#071426] via-[#07111f] to-[#0b1730]" />}
                         <div className="absolute inset-0 bg-[#021024]/42" />
-                        <div className="absolute top-12 left-12 z-30 flex items-center gap-4 rounded-[1.4rem] border border-white/18 bg-white/10 backdrop-blur-md px-5 py-3 shadow-[0_10px_35px_rgba(0,0,0,0.25)]">
-                            {data.othersTournamentLogo && <div className="w-20 h-20 flex items-center justify-center p-2"><CorsImg src={data.othersTournamentLogo} className="w-full h-full object-contain" style={{ filter: logoTintFilter }} /></div>}
-                            <div className="text-left">
-                                <div className="font-azonix text-[1.15rem] uppercase tracking-[0.08em]" style={{ color: logoTextColor }}>{tournamentLabel}</div>
-                                <div className="font-azonix text-[0.86rem] uppercase tracking-[0.08em]" style={{ color: logoTextColor, opacity: 0.85 }}>{data.othersComp}</div>
+                        <div className="absolute top-10 right-10 z-30"><LogoComponent /></div>
+                        <div className="absolute top-12 left-12 z-30 min-h-[116px] max-w-[560px] rounded-[1.6rem] bg-white/12 backdrop-blur-md border border-white/20 px-6 py-4 flex items-center gap-4 shadow-[0_18px_40px_rgba(0,0,0,0.6)]">
+                            {data.othersTournamentLogo && <CorsImg src={data.othersTournamentLogo} className="w-20 h-20 object-contain shrink-0" style={{ filter: logoFilter }} />}
+                            <div className="text-left min-w-0">
+                                <div className={`${infoClass} font-azonix text-[1.15rem] uppercase tracking-[0.08em] leading-tight`}>{tournamentLabel}</div>
+                                <div className={`${data.othersInfoWhite ? 'text-white/90' : 'text-[#0F3577]/90'} font-azonix text-[0.92rem] uppercase tracking-[0.08em] mt-2`}>{data.othersComp}</div>
                             </div>
                         </div>
-                        <div className="absolute top-10 right-10 z-30"><LogoComponent /></div>
-
                         <div className="absolute left-1/2 -translate-x-1/2 bottom-[84px] z-20 flex items-stretch items-center gap-0 shadow-[0_20px_45px_rgba(0,0,0,0.45)]">
-                            <div className="w-[230px] h-[210px] rounded-l-[2rem] flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${data.othersColor1}, #0b1220)` }}>
+                            <div className="w-[230px] h-[220px] rounded-l-[2rem] flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${data.othersColor1}, #0b1220)` }}>
                                 {data.othersTeam1Logo && <CorsImg src={data.othersTeam1Logo} className="w-32 h-32 object-contain filter brightness-0 invert" />}
                             </div>
-                            <div className="w-[430px] h-[210px] bg-white flex items-center justify-center gap-7 border-y border-slate-300">
-                                <span className="text-[#0F3577] font-talleres text-[9.2rem] leading-none" style={{ transform: 'translateY(5px)' }}>{data.othersScore1}</span>
-                                <span className="text-[#0F3577] font-azonix text-[4.6rem] leading-none">-</span>
-                                <span className="text-[#0F3577] font-talleres text-[9.2rem] leading-none" style={{ transform: 'translateY(5px)' }}>{data.othersScore2}</span>
+                            <div className="w-[410px] h-[220px] bg-white/95 backdrop-blur-sm flex items-center justify-center gap-7 border-y border-slate-300">
+                                <span className="font-talleres text-[9.2rem] leading-none bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(180deg, #1e3a8a 0%, #020617 100%)', WebkitBackgroundClip: 'text', color: 'transparent', transform: 'translateY(5px)' }}>{data.othersScore1}</span>
+                                <span className="font-talleres text-[5.8rem] leading-none bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(180deg, #1e3a8a 0%, #020617 100%)', WebkitBackgroundClip: 'text', color: 'transparent', transform: 'translateY(2px)' }}>-</span>
+                                <span className="font-talleres text-[9.2rem] leading-none bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(180deg, #1e3a8a 0%, #020617 100%)', WebkitBackgroundClip: 'text', color: 'transparent', transform: 'translateY(5px)' }}>{data.othersScore2}</span>
                             </div>
-                            <div className="w-[230px] h-[210px] rounded-r-[2rem] flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${data.othersColor2}, #0b1220)` }}>
+                            <div className="w-[230px] h-[220px] rounded-r-[2rem] flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${data.othersColor2}, #0b1220)` }}>
                                 {data.othersTeam2Logo && <CorsImg src={data.othersTeam2Logo} className="w-32 h-32 object-contain filter brightness-0 invert" />}
                             </div>
                         </div>
@@ -1643,42 +1752,38 @@
             const renderPosiciones = () => {
                 const allRows = data.positionsRows || [];
                 const talleresIdx = allRows.findIndex(row => normalizeName(row.team) === 'talleres');
-                let rows = allRows.slice(0, 10).map(r => ({ ...r, displayPos: r.pos }));
-                if (talleresIdx >= 10) {
-                    const talleresRow = { ...allRows[talleresIdx], displayPos: 10, realPos: allRows[talleresIdx].pos };
-                    rows = [...allRows.slice(0, 9).map(r => ({ ...r, displayPos: r.pos })), talleresRow];
-                }
+                const maxVisibleRows = 14;
+                let rows = allRows.slice(0, maxVisibleRows).map(r => ({ ...r }));
+                if (talleresIdx >= maxVisibleRows) rows = [...allRows.slice(0, maxVisibleRows - 1).map(r => ({ ...r })), { ...allRows[talleresIdx], realPos: allRows[talleresIdx].pos }];
+                const positionsBackground = DEFAULT_EDITOR_BG;
                 return (
                     <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden">
-                        <div className="absolute inset-0">
-                            <CorsImg src={data.results6Bg} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="absolute inset-0 bg-[#021024]/80" />
+                        <div className="absolute inset-0">{positionsBackground ? <CorsImg src={positionsBackground} className="w-full h-full object-cover" style={{ transform: 'none', filter: 'none', objectFit: 'cover' }} /> : <div className="w-full h-full bg-[#021024]" />}</div>
+                        <div className="absolute inset-0 bg-[#021024]/76" />
                         <div className="absolute top-10 right-10 z-30"><LogoComponent /></div>
-                        <div className="absolute left-[106px] right-[74px] top-[96px] bottom-[90px] z-20 rounded-[1.8rem] bg-[#020d23]/99 border border-[#1D4ED8]/40 shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
-                            <div className="px-10 pt-8 pb-4 text-center flex flex-col items-center bg-[#041537]">
-                                <h1 className="text-[4.15rem] leading-none font-azonix uppercase tracking-[0.02em] text-white">TABLA DE POSICIONES</h1>
-                                <h2 className="text-[1.35rem] leading-none mt-3 font-azonix tracking-[0.05em] text-[#bfdbfe]">{data.positionsSubtitle}</h2>
+                        <div className="absolute left-[106px] right-[74px] top-[92px] bottom-[28px] z-20 rounded-[1.8rem] bg-[#03122d]/97 border border-[#1D4ED8]/40 shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
+                            <div className="px-12 pt-8 pb-3 text-center flex flex-col items-center bg-[#041a43]">
+                                <h1 className="text-[4.4rem] leading-none font-azonix uppercase tracking-[0.03em] text-white">{data.positionsTitle}</h1>
+                                <h2 className="text-[1.45rem] leading-none mt-3 font-azonix tracking-[0.06em] text-[#bfdbfe]">{data.positionsSubtitle}</h2>
                                 {data.positionsTournamentLogo && <div className="w-16 h-16 mt-3"><CorsImg src={data.positionsTournamentLogo} className="w-full h-full object-contain filter brightness-0 invert" /></div>}
                             </div>
-                            <div className="px-5 py-4">
-                                <div className="grid grid-cols-[48px_56px_1fr_74px_74px_74px] items-center gap-2 bg-[#0a2a59] text-[#bfdbfe] font-azonix uppercase text-[0.78rem] rounded-[0.9rem] px-3 py-2 mb-2">
+                            <div className="px-6 py-4 h-[calc(100%-178px)] overflow-hidden">
+                                <div className="grid grid-cols-[58px_52px_1fr_68px_68px_68px] items-center gap-2 bg-[#0a2a59] text-[#bfdbfe] font-azonix uppercase text-[0.78rem] rounded-[1rem] px-4 py-2 mb-2">
                                     <div>Pos</div><div></div><div>Equipo</div><div className="text-center">Pts</div><div className="text-center">DG</div><div className="text-center">PJ</div>
                                 </div>
-                                <div className="flex flex-col gap-[6px]">
+                                <div className="flex flex-col gap-[5px]">
                                     {rows.map((row, idx) => {
                                         const isTalleres = normalizeName(row.team) === 'talleres';
+                                        const qualifies = (data.positionsMode === 'lpf' && row.pos <= 8) || (data.positionsMode === 'reserva' && row.pos <= 4);
+                                        const teamDisplay = getPositionsTeamDisplay(row.team);
                                         return (
-                                            <div key={`${row.team}-${idx}`} className={`grid grid-cols-[48px_56px_1fr_74px_74px_74px] items-center gap-2 rounded-[0.9rem] px-3 py-[7px] ${isTalleres ? 'bg-[#0d4aa6]' : 'bg-[#061834]'}`}>
-                                                <div className="text-white font-azonix text-[0.9rem]">{row.pos}</div>
-                                                <div className="w-11 h-11 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">{row.logo && <CorsImg src={row.logo} className="w-7 h-7 object-contain" />}</div>
-                                                <div className="min-w-0 pr-2">
-                                                    <div className={`font-azonix uppercase text-[0.92rem] leading-none truncate ${isTalleres ? 'text-[#dbeafe]' : 'text-white'}`}>{row.team}</div>
-                                                    {row.realPos && <div className="text-[#bfdbfe] text-[0.56rem] font-bold uppercase tracking-[0.03em] mt-1">Posición real: {row.realPos}</div>}
-                                                </div>
-                                                <div className="text-center text-white font-talleres text-[1.95rem] leading-none" style={{ transform: 'translateY(3px)' }}>{row.pts}</div>
-                                                <div className="text-center text-white font-montserrat font-bold text-[0.92rem]">{row.dg}</div>
-                                                <div className="text-center text-white font-montserrat font-bold text-[0.92rem]">{row.pj}</div>
+                                            <div key={`${row.team}-${idx}`} className={`grid grid-cols-[58px_52px_1fr_68px_68px_68px] items-center gap-2 rounded-[0.95rem] px-4 py-[8px] ${isTalleres ? 'bg-[#0d4aa6]' : 'bg-[#07204d]'}`}>
+                                                <div className="flex items-center justify-center">{qualifies ? <div className="w-8 h-8 rounded-full bg-[#2563eb] flex items-center justify-center text-white font-azonix text-[0.85rem]">{row.pos}</div> : <div className="text-white font-azonix text-[0.9rem]">{row.pos}</div>}</div>
+                                                <div className="w-10 h-10 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">{row.logo && <CorsImg src={row.logo} className="w-7 h-7 object-contain" />}</div>
+                                                <div className="min-w-0"><div className={`font-azonix uppercase leading-none whitespace-nowrap ${getPositionsTeamClass(teamDisplay)} ${isTalleres ? 'text-[#dbeafe]' : 'text-white'}`}>{teamDisplay}</div>{row.realPos && <div className="text-[#bfdbfe] text-[0.58rem] font-bold uppercase tracking-[0.04em] mt-1">Posición real: {row.realPos}</div>}</div>
+                                                <div className="text-center text-white font-talleres text-[2rem] leading-none" style={{ transform: 'translateY(2px)' }}>{row.pts}</div>
+                                                <div className="text-center text-white font-montserrat font-bold text-[0.95rem]">{row.dg}</div>
+                                                <div className="text-center text-white font-montserrat font-bold text-[0.95rem]">{row.pj}</div>
                                             </div>
                                         );
                                     })}
@@ -1739,18 +1844,34 @@
                                         <button onClick={handleClearImage} className="bg-red-700 hover:bg-red-600 py-2 rounded flex justify-center items-center gap-2 text-[10px] font-bold">ELIMINAR</button>
                                     </div>
 
+                                    <div className="bg-slate-800 p-2 rounded border border-slate-600 mt-2">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-[10px] font-bold text-slate-300 uppercase">Piezas disponibles</label>
+                                            <span className="text-[10px] text-slate-500">Vista previa</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                                            {SELECTABLE_PIECES.map((piece, idx) => (
+                                                <button
+                                                    key={`${piece.name}-${idx}`}
+                                                    onClick={() => handlePresetPieceSelect(piece.url)}
+                                                    className={`rounded-lg overflow-hidden border transition-all ${selectedPieceUrl === piece.url ? 'border-blue-500 ring-2 ring-blue-500/40' : 'border-slate-600 hover:border-blue-400'}`}
+                                                    title={piece.name}
+                                                >
+                                                    <div className="aspect-[4/5] bg-slate-900 flex items-center justify-center overflow-hidden">
+                                                        <CorsImg src={piece.url} className="w-full h-full object-cover" />
+                                                    </div>
+                                                    <div className="px-2 py-1 bg-slate-900 text-[10px] font-bold text-slate-200 truncate">{piece.name}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     {image && (
                                         <div className="bg-slate-800 p-2 rounded border border-slate-600 mt-2">
-                                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">Filtros de Imagen Base</label>
-                                            <div className="grid grid-cols-4 gap-1">
-                                                <button onClick={() => setImageFilter('')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === '' ? 'bg-blue-600' : 'bg-slate-700'}`}>Norm</button>
-                                                <button onClick={() => setImageFilter('grayscale(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'grayscale(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>B&N</button>
-                                                <button onClick={() => setImageFilter('sepia(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'sepia(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Sepia</button>
-                                                <button onClick={() => setImageFilter('brightness(0.5)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'brightness(0.5)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Oscuro</button>
-                                                <button onClick={() => setImageFilter('contrast(1.5) saturate(1.2)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.5) saturate(1.2)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Vivo</button>
-                                                <button onClick={() => setImageFilter('contrast(1.18) saturate(1.12) brightness(1.03)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.18) saturate(1.12) brightness(1.03)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Claridad</button>
-                                                <button onClick={() => setImageFilter('contrast(1.22) saturate(1.14) brightness(1.04)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.22) saturate(1.14) brightness(1.04)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Textura</button>
-                                                <button onClick={() => setImageFilter('contrast(1.2) saturate(1.1) brightness(1.05)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.2) saturate(1.1) brightness(1.05)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Raw</button>
+                                            <label className="text-[10px] font-bold text-slate-400 mb-1 block">Edición de imagen</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button onClick={() => setImageFilter('')} className="p-2 text-[10px] rounded font-bold bg-slate-700">NATURAL</button>
+                                                <button onClick={() => handleInputChange('imageSmooth', !data.imageSmooth)} className="p-2 text-[10px] rounded font-bold bg-slate-700">{data.imageSmooth ? 'SUAVIZAR: SI' : 'SUAVIZAR: NO'}</button>
                                             </div>
                                             <div className="flex items-center gap-4 mt-3"><span className="text-[10px] font-bold text-slate-400 w-16">AJUSTE</span><button onClick={() => setImageFit(imageFit === 'cover' ? 'contain' : 'cover')} className="bg-slate-700 p-1 text-[10px] rounded flex-1 font-bold">{imageFit === 'cover' ? 'RELLENAR (AUTO-RECORTE)' : 'VER COMPLETA (SIN RECORTE)'}</button></div>
                                         </div>
@@ -1787,15 +1908,14 @@
                                 {activeTemplate === TEMPLATES.OTROS_RESULTADOS && (
                                     <div className="space-y-4">
                                         <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
-                                            <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Reserva</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+                                            <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Torneo Proyección</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR RESERVA</button>
+                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR PROYECCIÓN</button>
                                                 <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR FEMENINO</button>
                                             </div>
                                             <input type="text" value={data.othersTitle} onChange={(e) => handleInputChange('othersTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
                                             <input type="text" value={data.othersSubtitle} onChange={(e) => handleInputChange('othersSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
                                             <input type="text" value={data.othersComp} onChange={(e) => handleInputChange('othersComp', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Competencia" />
-                                            <select value={data.othersLogoWhite ? 'white' : 'blue'} onChange={(e) => handleInputChange('othersLogoWhite', e.target.value === 'white')} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="blue">Logo/Título azul oscuro</option><option value="white">Logo/Título blanco</option></select>
                                         </div>
                                         <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
                                             <div className="grid grid-cols-2 gap-2">
@@ -1810,6 +1930,10 @@
                                                 <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 1</span><input type="color" value={data.othersColor1} onChange={(e) => handleInputChange('othersColor1', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
                                                 <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 2</span><input type="color" value={data.othersColor2} onChange={(e) => handleInputChange('othersColor2', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
                                             </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleInputChange('othersLogoWhite', !data.othersLogoWhite)} className="flex-1 bg-slate-900 p-2 rounded text-xs font-bold">Logo comp.: {data.othersLogoWhite ? 'BLANCO' : 'AZUL'}</button>
+                                                <button onClick={() => handleInputChange('othersInfoWhite', !data.othersInfoWhite)} className="flex-1 bg-slate-900 p-2 rounded text-xs font-bold">Info comp.: {data.othersInfoWhite ? 'BLANCA' : 'AZUL'}</button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1822,7 +1946,7 @@
                                             <label className="text-xs font-bold text-blue-300">TABLA DE POSICIONES</label>
                                             <div className="grid grid-cols-3 gap-2">
                                                 <button onClick={() => applyPositionsPreset('lpf')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">LPF</button>
-                                                <button onClick={() => applyPositionsPreset('reserva')} className="bg-slate-600 hover:bg-slate-500 rounded py-2 text-xs font-bold">RESERVA</button>
+                                                <button onClick={() => applyPositionsPreset('reserva')} className="bg-slate-600 hover:bg-slate-500 rounded py-2 text-xs font-bold">PROYECCIÓN</button>
                                                 <button onClick={() => applyPositionsPreset('femenino')} className="bg-pink-600 hover:bg-pink-500 rounded py-2 text-xs font-bold">FEMENINO</button>
                                             </div>
                                             <input type="text" value={data.positionsTitle} onChange={(e) => handleInputChange('positionsTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
@@ -1848,12 +1972,22 @@
                                         <div className="flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => handleInputChange('blueOverlay', !data.blueOverlay)}>{data.blueOverlay ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs font-bold text-slate-300">Aplicar Filtro Azul Oscuro</label></div><PaletteIcon size={16} className={data.blueOverlay ? 'text-blue-400' : 'text-slate-600'}/></div>
                                         {data.blueOverlay && <div className="flex items-center gap-2"><input type="color" value={data.blueOverlayColor1} onChange={(e) => handleInputChange('blueOverlayColor1', e.target.value)} className="w-8 h-8 rounded border-none p-0 bg-transparent" /><input type="color" value={data.blueOverlayColor2} onChange={(e) => handleInputChange('blueOverlayColor2', e.target.value)} className="w-8 h-8 rounded border-none p-0 bg-transparent" /><button onClick={() => handleInputChange('blueOverlayReverse', !data.blueOverlayReverse)} className="bg-slate-700 px-2 py-1 rounded text-[10px] font-bold">{data.blueOverlayReverse ? 'INVERTIDO' : 'NORMAL'}</button></div>}
                                         <div className="w-full h-[1px] bg-slate-700"></div>
+                                        <div className="flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => handleInputChange('gradientEnabled', !data.gradientEnabled)}>{data.gradientEnabled ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs font-bold text-slate-300">Mapa de degradado</label></div><PaletteIcon size={16} className={data.gradientEnabled ? 'text-blue-400' : 'text-slate-600'}/></div>
+                                        {data.gradientEnabled && <div className="flex items-center gap-2"><input type="color" value={data.gradientColor1} onChange={(e) => handleInputChange('gradientColor1', e.target.value)} className="w-8 h-8 rounded border-none p-0 bg-transparent" /><input type="color" value={data.gradientColor2} onChange={(e) => handleInputChange('gradientColor2', e.target.value)} className="w-8 h-8 rounded border-none p-0 bg-transparent" /><button onClick={() => handleInputChange('gradientInvert', !data.gradientInvert)} className="bg-slate-700 px-2 py-1 rounded text-[10px] font-bold">{data.gradientInvert ? 'INVERTIDO' : 'NORMAL'}</button></div>}
+                                        <div className="w-full h-[1px] bg-slate-700"></div>
                                         <div className="flex items-center justify-between"><div className="flex items-center gap-2"><button onClick={() => handleInputChange('useBold', !data.useBold)}>{data.useBold ? <CheckSquare size={16} className="text-blue-500"/> : <Square size={16} className="text-slate-500"/>}</button><label className="text-xs font-bold text-slate-300">Textos en Negrita</label></div><Type size={16} className={data.useBold ? 'text-blue-400' : 'text-slate-600'}/></div>
                                     </div>
 
                                     {image && (
                                         <div className="bg-slate-800 p-4 rounded flex flex-col gap-4 border border-slate-600 mt-4">
                                             <label className="text-xs text-blue-400 text-center font-bold uppercase">Ajuste de Imagen (Manual)</label>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                <button onClick={() => setImageFilter('')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === '' ? 'bg-blue-600' : 'bg-slate-700'}`}>Normal</button>
+                                                <button onClick={() => setImageFilter('grayscale(100%)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'grayscale(100%)' ? 'bg-blue-600' : 'bg-slate-700'}`}>ByN</button>
+                                                <button onClick={() => setImageFilter('contrast(1.05) saturate(0.9) brightness(0.98)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.05) saturate(0.9) brightness(0.98)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Granulado</button>
+                                                <button onClick={() => setImageFilter('contrast(1.18) saturate(1.1) brightness(1.02)')} className={`p-1 text-[9px] rounded font-bold ${imageFilter === 'contrast(1.18) saturate(1.1) brightness(1.02)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Textura</button>
+                                            </div>
+                                            <button onClick={() => setImageFilter('contrast(1.24) saturate(1.12) brightness(1.05)')} className={`p-2 text-[10px] rounded font-bold ${imageFilter === 'contrast(1.24) saturate(1.12) brightness(1.05)' ? 'bg-blue-600' : 'bg-slate-700'}`}>Mejorar HD</button>
                                             <div className="flex items-center gap-4"><ZoomIn size={16} className="text-slate-400 flex-none"/><input type="range" min="0.1" max="3" step="0.05" value={imageScale} onChange={(e) => setImageScale(parseFloat(e.target.value))} className="w-full" /></div>
                                             <div className="flex items-center gap-4"><span className="text-[10px] font-bold text-slate-400 w-4">X</span><input type="range" min="-1500" max="1500" step="10" value={imagePos.x} onChange={(e) => setImagePos({...imagePos, x: parseFloat(e.target.value)})} className="w-full" /></div>
                                             <div className="flex items-center gap-4"><span className="text-[10px] font-bold text-slate-400 w-4">Y</span><input type="range" min="-1500" max="1500" step="10" value={imagePos.y} onChange={(e) => setImagePos({...imagePos, y: parseFloat(e.target.value)})} className="w-full" /></div>
@@ -1877,7 +2011,7 @@
                                     <div className="space-y-4">
                                         <div className="bg-slate-700/30 p-2 rounded space-y-2 border border-slate-600"><label className="text-xs font-bold text-blue-300">INFO DEL PARTIDO</label><div className="flex gap-2"><input type="date" value={data.matchDate} onChange={(e) => handleInputChange('matchDate', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs" /><input type="time" value={data.matchTime} onChange={(e) => handleInputChange('matchTime', e.target.value)} className="w-1/2 bg-slate-900 p-2 rounded text-xs" /></div><input type="text" value={data.matchStadium} onChange={(e) => handleInputChange('matchStadium', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs" placeholder="Estadio (Ej: KEMPES)" />{activeTemplate === TEMPLATES.CONVOCADOS && <input type="text" value={data.rivalName} onChange={(e) => handleInputChange('rivalName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs mt-2" placeholder="Nombre Rival" />}<input type="text" value={data.dtName} onChange={(e) => handleInputChange('dtName', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs mt-2" placeholder="Nombre DT" /></div>
                                         <div><div className="flex justify-between items-center mb-2"><label className="text-xs font-bold text-slate-400">SELECCIONAR JUGADORES</label><span className="text-[10px] text-slate-500">{roster.filter(p => p.selected).length} Sel.</span></div><div className="h-60 overflow-y-auto bg-slate-900 rounded p-2 custom-scrollbar">{roster.map((p, i) => <div key={i} className="flex items-center gap-2 mb-1 hover:bg-slate-800 p-1 rounded"><button onClick={() => togglePlayer(i, activeTemplate === TEMPLATES.FORMACION)}>{p.selected ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} className="text-slate-600" />}</button><input type="text" value={p.number} onChange={(e) => updatePlayerNumber(i, e.target.value)} className="w-8 bg-black text-center text-xs p-1 rounded text-blue-300 border-none font-talleres" /><div className="flex-1"><p className="text-xs font-bold text-white leading-none">{p.name}</p><p className="text-[10px] text-slate-500 leading-none mt-1">{p.pos}</p></div></div>)}</div></div>
-                                        {activeTemplate === TEMPLATES.FORMACION && <div><label className="text-xs font-bold text-slate-400 mb-2 block">ORDENAR FORMACIÓN (Arrastrar)</label><div className="space-y-1 bg-slate-900 p-2 rounded">{data.formationList.map((p, i) => <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, i)} className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-move hover:bg-slate-700 transition-colors"><GripVertical size={14} className="text-slate-500"/><span className="text-xs font-bold text-blue-400 w-6 font-talleres">{p.number}</span><span className="text-xs text-white">{p.name}</span></div>)}</div></div>}
+                                        {activeTemplate === TEMPLATES.FORMACION && <div><label className="text-xs font-bold text-slate-400 mb-2 block">ORDENAR FORMACIÓN (Arrastrar) — máximo 11 jugadores</label><div className="space-y-1 bg-slate-900 p-2 rounded">{data.formationList.map((p, i) => <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDragOver={onDragOver} onDrop={(e) => onDrop(e, i)} className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-move hover:bg-slate-700 transition-colors"><GripVertical size={14} className="text-slate-500"/><span className="text-xs font-bold text-blue-400 w-6 font-talleres">{p.number}</span><span className="text-xs text-white">{p.name}</span></div>)}</div></div>}
                                     </div>
                                 )}
 
@@ -1916,15 +2050,14 @@
                                 {activeTemplate === TEMPLATES.OTROS_RESULTADOS && (
                                     <div className="space-y-4">
                                         <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
-                                            <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Reserva</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+                                            <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Torneo Proyección</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR RESERVA</button>
+                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR PROYECCIÓN</button>
                                                 <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR FEMENINO</button>
                                             </div>
                                             <input type="text" value={data.othersTitle} onChange={(e) => handleInputChange('othersTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
                                             <input type="text" value={data.othersSubtitle} onChange={(e) => handleInputChange('othersSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
                                             <input type="text" value={data.othersComp} onChange={(e) => handleInputChange('othersComp', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Competencia" />
-                                            <select value={data.othersLogoWhite ? 'white' : 'blue'} onChange={(e) => handleInputChange('othersLogoWhite', e.target.value === 'white')} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="blue">Logo/Título azul oscuro</option><option value="white">Logo/Título blanco</option></select>
                                         </div>
                                         <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
                                             <div className="grid grid-cols-2 gap-2">
@@ -1939,6 +2072,10 @@
                                                 <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 1</span><input type="color" value={data.othersColor1} onChange={(e) => handleInputChange('othersColor1', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
                                                 <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">Color 2</span><input type="color" value={data.othersColor2} onChange={(e) => handleInputChange('othersColor2', e.target.value)} className="w-8 h-8 bg-transparent border-none p-0" /></div>
                                             </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleInputChange('othersLogoWhite', !data.othersLogoWhite)} className="flex-1 bg-slate-900 p-2 rounded text-xs font-bold">Logo comp.: {data.othersLogoWhite ? 'BLANCO' : 'AZUL'}</button>
+                                                <button onClick={() => handleInputChange('othersInfoWhite', !data.othersInfoWhite)} className="flex-1 bg-slate-900 p-2 rounded text-xs font-bold">Info comp.: {data.othersInfoWhite ? 'BLANCA' : 'AZUL'}</button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1948,7 +2085,35 @@
                                         {activeTemplate === TEMPLATES.HOY_JUEGA && (
                                             <div className="bg-slate-800 p-2 rounded space-y-3 border border-slate-600 mb-4">
                                                 <label className="text-[10px] font-bold text-blue-300">TEXTOS (HOY JUEGA)</label>
-                                                <button onClick={applyNextMatchPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-[10px] font-bold">CARGAR PRÓXIMO PARTIDO</button>
+                                                <button onClick={applyNextMatchPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-[10px] font-bold">CARGAR PRÓXIMO PARTIDO</button><div className="flex items-center gap-2"><span className="text-[10px] text-slate-400 w-20">Sombra</span><input type="range" min="0" max="1" step="0.05" value={data.hjShadow ?? 0.92} onChange={(e) => handleInputChange('hjShadow', parseFloat(e.target.value))} className="w-full" /></div>
+
+                                                <div className="bg-slate-900/70 border border-slate-700 rounded p-2 space-y-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Alineación manual del texto</span>
+                                                        <button onClick={() => { handleInputChange('hjTextCenterX', 540); handleInputChange('hjTextY1', 598); handleInputChange('hjTextY2', 722); }} className="bg-blue-600 hover:bg-blue-500 rounded px-2 py-1 text-[9px] font-bold">CENTRO INICIAL / RESET</button>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <button onClick={() => handleInputChange('hjTextCenterX', -450)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">MUY IZQ</button>
+                                                        <button onClick={() => handleInputChange('hjTextCenterX', 540)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">CENTRO</button>
+                                                        <button onClick={() => handleInputChange('hjTextCenterX', 1350)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">MUY DER</button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-slate-400 w-24">Centro X</span>
+                                                        <input type="range" min="-800" max="1800" step="1" value={data.hjTextCenterX ?? 540} onChange={(e) => handleInputChange('hjTextCenterX', parseInt(e.target.value, 10))} className="w-full" />
+                                                        <input type="number" value={data.hjTextCenterX ?? 540} onChange={(e) => handleInputChange('hjTextCenterX', parseInt(e.target.value || '540', 10))} className="w-20 bg-slate-800 p-1 rounded text-[10px] text-center font-bold" />
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-slate-400 w-24">Y Texto 1</span>
+                                                        <input type="range" min="250" max="900" step="1" value={data.hjTextY1 ?? 598} onChange={(e) => handleInputChange('hjTextY1', parseInt(e.target.value, 10))} className="w-full" />
+                                                        <input type="number" value={data.hjTextY1 ?? 598} onChange={(e) => handleInputChange('hjTextY1', parseInt(e.target.value || '598', 10))} className="w-20 bg-slate-800 p-1 rounded text-[10px] text-center font-bold" />
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-slate-400 w-24">Y Texto 2</span>
+                                                        <input type="range" min="250" max="980" step="1" value={data.hjTextY2 ?? 722} onChange={(e) => handleInputChange('hjTextY2', parseInt(e.target.value, 10))} className="w-full" />
+                                                        <input type="number" value={data.hjTextY2 ?? 722} onChange={(e) => handleInputChange('hjTextY2', parseInt(e.target.value || '722', 10))} className="w-20 bg-slate-800 p-1 rounded text-[10px] text-center font-bold" />
+                                                    </div>
+                                                </div>
+
                                                 <div className="flex items-center gap-2 mt-1"><input type="text" value={data.hjTextLine1} onChange={(e) => handleInputChange('hjTextLine1', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" /><input type="color" value={data.hjTextColor1} onChange={(e) => handleInputChange('hjTextColor1', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" /><button onClick={() => handleInputChange('hjTextHollow1', !data.hjTextHollow1)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">{data.hjTextHollow1 ? 'HUECO' : 'SÓLIDO'}</button></div>
                                                 <select value={data.hjTextBlendMode1} onChange={(e) => handleInputChange('hjTextBlendMode1', e.target.value)} className="w-full bg-slate-900 p-1 rounded text-[10px]">{BLEND_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>Fusión HOY JUEGA: {opt.label}</option>)}</select>
                                                 <div className="flex items-center gap-2 mt-1"><input type="text" value={data.hjTextLine2} onChange={(e) => handleInputChange('hjTextLine2', e.target.value)} className="w-1/2 bg-slate-900 p-1 rounded text-xs text-center font-bold" /><input type="color" value={data.hjTextColor2} onChange={(e) => handleInputChange('hjTextColor2', e.target.value)} className="w-6 h-6 rounded border-none p-0 cursor-pointer bg-transparent" /><button onClick={() => handleInputChange('hjTextHollow2', !data.hjTextHollow2)} className="bg-slate-700 text-[9px] p-1 rounded font-bold">{data.hjTextHollow2 ? 'HUECO' : 'SÓLIDO'}</button></div>
@@ -1970,7 +2135,7 @@
 
                     <div ref={containerRef} className={`flex-1 flex items-center justify-center relative transition-all duration-300 ${isPreviewMode ? 'fixed inset-0 z-50 bg-black' : 'bg-slate-950/50 p-2 md:p-4 overflow-auto'}`} onPaste={handleGlobalPaste} tabIndex="0">
                         <div className="absolute top-4 right-4 z-50 flex gap-2"><button onClick={() => setIsPreviewMode(!isPreviewMode)} className="bg-black/50 hover:bg-blue-600 text-white p-3 rounded-full backdrop-blur-md transition-all shadow-lg border border-white/20">{isPreviewMode ? <Minimize2 size={24} /> : <Eye size={24} />}</button></div>
-                        <div ref={wrapperRef} style={{ transform: isPreviewMode ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.9})` : `scale(${previewScale})`, transformOrigin: 'center' }} className="shadow-2xl">
+                        <div ref={wrapperRef} style={{ transform: isPreviewMode ? `scale(${Math.min(window.innerWidth / 1080, window.innerHeight / 1350) * 0.95})` : `scale(${previewScale})`, transformOrigin: 'center' }} className="shadow-2xl">
                             <div ref={canvasRef} style={{ width: '1080px', height: '1350px', backgroundColor: THEME.bg }} className="overflow-hidden shadow-2xl relative bg-[#021024]">{renderActiveTemplate()}</div>
                         </div>
                         {!isPreviewMode && <button onClick={handleDownload} disabled={loading} className="absolute bottom-6 right-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 z-30 transition-transform hover:scale-105 active:scale-95">{loading ? 'PROCESANDO...' : <><Download size={20} /> DESCARGAR HD</>}</button>}
