@@ -14,6 +14,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
@@ -466,6 +467,8 @@
             const canvasRef = useRef(null);
             const containerRef = useRef(null);
             const wrapperRef = useRef(null);
+            const othersMemoryRef = useRef({});
+            const positionsMemoryRef = useRef({});
 
             const [activeTemplate, setActiveTemplate] = useState(TEMPLATES.HOY_JUEGA);
             const [image, setImage] = useState(null);
@@ -480,6 +483,25 @@
             const [imageFit, setImageFit] = useState('cover');
             const [imageReady, setImageReady] = useState(false);
             const [selectedPieceUrl, setSelectedPieceUrl] = useState('');
+            const [sheetSources, setSheetSources] = useState({
+                hoyFinal: '',
+                otrosReserva: '',
+                otrosFemenino: '',
+                juveniles: ''
+            });
+            const [sheetOptions, setSheetOptions] = useState({
+                hoyFinal: [],
+                otrosReserva: [],
+                otrosFemenino: [],
+                juveniles: []
+            });
+            const [sheetSelections, setSheetSelections] = useState({
+                hoy: '',
+                final: '',
+                otrosReserva: '',
+                otrosFemenino: '',
+                juveniles: ''
+            });
 
             const [data, setData] = useState({
                 useBold: true,
@@ -536,6 +558,7 @@
                 hjTextHollow2: false,
                 hjTextBlendMode1: 'overlay',
                 hjTextBlendMode2: 'soft-light',
+                hjTextAnchor: 'center',
                 hjTextCenterX: 540,
                 hjTextY1: 598,
                 hjTextY2: 722,
@@ -705,6 +728,7 @@
                     resScore2: '',
                     resTournamentLogo: leagueLogo || prev.resTournamentLogo,
                     resTournamentName: 'LIGA PROFESIONAL',
+                    hjTextAnchor: 'center',
                     hjTextCenterX: 540,
                     hjTextY1: 598,
                     hjTextY2: 722
@@ -744,62 +768,312 @@
                 }));
             };
 
+            const convertSheetUrlToCsv = (url = '') => {
+                const clean = String(url || '').trim();
+                if (!clean) return '';
+                if (clean.includes('tqx=out:csv') || clean.includes('output=csv')) return clean;
+                const idMatch = clean.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+                const gidMatch = clean.match(/[?&]gid=([0-9]+)/);
+                if (idMatch) {
+                    const gid = gidMatch ? gidMatch[1] : '0';
+                    return `https://docs.google.com/spreadsheets/d/${idMatch[1]}/gviz/tq?tqx=out:csv&gid=${gid}`;
+                }
+                return clean;
+            };
+
+            const fetchTextWithFallback = async (sourceUrl) => {
+                const targets = [
+                    sourceUrl,
+                    `https://corsproxy.io/?${encodeURIComponent(sourceUrl)}`,
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(sourceUrl)}`
+                ];
+                let lastError = null;
+                for (const target of targets) {
+                    try {
+                        const response = await fetch(target);
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        return await response.text();
+                    } catch (err) {
+                        lastError = err;
+                    }
+                }
+                throw lastError || new Error('No se pudo leer la hoja.');
+            };
+
+            const normKey = (value = '') => normalizeName(value).replace(/\s+/g, '');
+
+            const getRowValue = (row = {}, candidates = []) => {
+                const entries = Object.entries(row || {});
+                for (const candidate of candidates) {
+                    const target = normKey(candidate);
+                    const found = entries.find(([key]) => {
+                        const keyNorm = normKey(key);
+                        return keyNorm === target || keyNorm.includes(target) || target.includes(keyNorm);
+                    });
+                    if (found) {
+                        const raw = found[1];
+                        if (raw !== undefined && raw !== null && String(raw).trim() !== '') return String(raw).trim();
+                    }
+                }
+                return '';
+            };
+
+            const parseScorePair = (row = {}) => {
+                let score1 = getRowValue(row, ['gol local', 'goles local', 'score1', 'marcador local', 'resultado local', 'tantos local']);
+                let score2 = getRowValue(row, ['gol visitante', 'goles visitante', 'score2', 'marcador visitante', 'resultado visitante', 'tantos visitante']);
+                const combined = getRowValue(row, ['resultado', 'marcador', 'score', 'resultado final']);
+                if ((!score1 || !score2) && combined) {
+                    const match = combined.match(/(\d+)\s*[-:]\s*(\d+)/);
+                    if (match) {
+                        score1 = score1 || match[1];
+                        score2 = score2 || match[2];
+                    }
+                }
+                return { score1: score1 || '', score2: score2 || '' };
+            };
+
+            const getMatchTeams = (row = {}) => {
+                const team1 = getRowValue(row, ['local', 'equipo local', 'club local', 'team1', 'equipo1', 'equipo a']) || 'Equipo 1';
+                const team2 = getRowValue(row, ['visitante', 'equipo visitante', 'club visitante', 'team2', 'equipo2', 'equipo b', 'rival']) || 'Equipo 2';
+                return { team1, team2 };
+            };
+
+            const getMatchLabelFromRow = (row = {}, index = 0) => {
+                const { team1, team2 } = getMatchTeams(row);
+                const date = getRowValue(row, ['fecha', 'día', 'dia', 'date']);
+                const time = getRowValue(row, ['hora', 'horario', 'time']);
+                const stage = getRowValue(row, ['jornada', 'fase', 'instancia', 'fecha nro', 'fecha numero']);
+                return `${date ? `${date}${time ? ` ${time}` : ''} · ` : ''}${stage ? `${stage} · ` : ''}${team1} vs ${team2}` || `Partido ${index + 1}`;
+            };
+
+            const rowsToMatchOptions = (rows = []) => rows.map((row, index) => ({
+                value: String(index),
+                label: getMatchLabelFromRow(row, index),
+                row
+            }));
+
+            const rowsToJuvenilesOptions = (rows = []) => {
+                const groups = {};
+                rows.forEach((row, index) => {
+                    const division = getRowValue(row, ['division', 'división', 'categoria', 'categoría']) || `División ${index + 1}`;
+                    const stage = getRowValue(row, ['jornada', 'fecha', 'fecha nro', 'fecha numero']) || 'Jornada';
+                    const { team1, team2 } = getMatchTeams(row);
+                    const rival = normalizeName(team1).includes('talleres') ? team2 : team1;
+                    const key = `${stage}__${rival}`;
+                    if (!groups[key]) groups[key] = { value: key, label: `${stage} vs ${rival}`, rows: [] };
+                    const { score1, score2 } = parseScorePair(row);
+                    groups[key].rows.push({
+                        division,
+                        localia: getRowValue(row, ['localia', 'condicion', 'l/v']) || (normalizeName(team1).includes('talleres') ? 'L' : 'V'),
+                        team1,
+                        team2,
+                        score: score1 || score2 ? `${score1 || '0'}-${score2 || '0'}` : getRowValue(row, ['resultado', 'marcador', 'score']) || '0-0',
+                        team1Logo: getTeamLogo(team1),
+                        team2Logo: getTeamLogo(team2)
+                    });
+                });
+                return Object.values(groups);
+            };
+
+            const updateSheetSource = (key, value) => setSheetSources(prev => ({ ...prev, [key]: value }));
+            const updateSheetSelection = (key, value) => setSheetSelections(prev => ({ ...prev, [key]: value }));
+
+            const loadSheetOptions = async (key, mode = 'matches') => {
+                const sourceUrl = convertSheetUrlToCsv(sheetSources[key]);
+                if (!sourceUrl) {
+                    alert('Pegá la URL publicada de la hoja primero.');
+                    return;
+                }
+                try {
+                    setLoading(true);
+                    const csvText = await fetchTextWithFallback(sourceUrl);
+                    const parsed = window.Papa ? window.Papa.parse(csvText, { header: true, skipEmptyLines: true }) : { data: [] };
+                    const rows = (parsed.data || []).filter(row => Object.values(row || {}).some(value => String(value || '').trim() !== ''));
+                    const options = mode === 'juveniles' ? rowsToJuvenilesOptions(rows) : rowsToMatchOptions(rows);
+                    setSheetOptions(prev => ({ ...prev, [key]: options }));
+                    alert(`Se cargaron ${options.length} opciones desde la hoja.`);
+                } catch (error) {
+                    console.error(error);
+                    alert('No se pudo leer la hoja. Verificá que esté publicada y que la URL sea correcta.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const applyHoyFromSheet = () => {
+                const option = sheetOptions.hoyFinal.find(item => item.value === sheetSelections.hoy);
+                if (!option) return;
+                const { team1, team2 } = getMatchTeams(option.row);
+                setData(prev => ({
+                    ...prev,
+                    hjTextAnchor: 'center',
+                    hjTextCenterX: 540,
+                    resTeam1Name: team1,
+                    resTeam2Name: team2,
+                    resTeam1Logo: getTeamLogo(team1) || prev.resTeam1Logo,
+                    resTeam2Logo: getTeamLogo(team2) || prev.resTeam2Logo
+                }));
+            };
+
+            const applyResultadoFinalFromSheet = () => {
+                const option = sheetOptions.hoyFinal.find(item => item.value === sheetSelections.final);
+                if (!option) return;
+                const { team1, team2 } = getMatchTeams(option.row);
+                const { score1, score2 } = parseScorePair(option.row);
+                setData(prev => ({
+                    ...prev,
+                    resTeam1Name: team1,
+                    resTeam2Name: team2,
+                    resTeam1Logo: getTeamLogo(team1) || prev.resTeam1Logo,
+                    resTeam2Logo: getTeamLogo(team2) || prev.resTeam2Logo,
+                    resScore1: score1 || prev.resScore1,
+                    resScore2: score2 || prev.resScore2
+                }));
+            };
+
+            const applyOthersFromSheet = (type = 'reserva') => {
+                const key = type === 'femenino' ? 'otrosFemenino' : 'otrosReserva';
+                const selectionKey = type === 'femenino' ? 'otrosFemenino' : 'otrosReserva';
+                const option = sheetOptions[key].find(item => item.value === sheetSelections[selectionKey]);
+                if (!option) return;
+                const { team1, team2 } = getMatchTeams(option.row);
+                const { score1, score2 } = parseScorePair(option.row);
+                const subtitle = type === 'femenino' ? 'FEMENINO' : 'TORNEO PROYECCIÓN';
+                setData(prev => ({
+                    ...prev,
+                    othersTournamentType: type,
+                    othersSubtitle: subtitle,
+                    othersTeam1Name: team1,
+                    othersTeam2Name: team2,
+                    othersTeam1Logo: getTeamLogo(team1) || prev.othersTeam1Logo,
+                    othersTeam2Logo: getTeamLogo(team2) || prev.othersTeam2Logo,
+                    othersScore1: score1 || prev.othersScore1,
+                    othersScore2: score2 || prev.othersScore2
+                }));
+            };
+
+            const applyJuvenilesFromSheet = () => {
+                const option = sheetOptions.juveniles.find(item => item.value === sheetSelections.juveniles);
+                if (!option) return;
+                const rows = option.rows.slice(0, 6);
+                setData(prev => ({
+                    ...prev,
+                    results6Title: 'JUVENILES',
+                    results6Subtitle: option.label,
+                    results6Rows: syncResults6Logos(rows)
+                }));
+            };
+
+            const getOthersCurrentSheetKey = () => data.othersTournamentType === 'femenino' ? 'otrosFemenino' : 'otrosReserva';
+
+            const getOthersCurrentSheetOptions = () => sheetOptions[getOthersCurrentSheetKey()] || [];
+            const getOthersCurrentSelection = () => sheetSelections[getOthersCurrentSheetKey()] || '';
+
+            const getOthersCurrentSheetSource = () => sheetSources[getOthersCurrentSheetKey()] || '';
+
+            const getOthersCurrentLoadLabel = () => data.othersTournamentType === 'femenino' ? 'CARGAR HOJA FEMENINO' : 'CARGAR HOJA PROYECCIÓN';
+
+            const getOthersApplyLabel = () => data.othersTournamentType === 'femenino' ? 'APLICAR A FEMENINO' : 'APLICAR A PROYECCIÓN';
+
+            const getOthersPlaceholder = () => data.othersTournamentType === 'femenino' ? 'URL hoja Femenino' : 'URL hoja Torneo Proyección';
+
+            const getOthersSnapshot = (source) => ({
+                othersTournamentType: source.othersTournamentType,
+                othersTitle: source.othersTitle,
+                othersSubtitle: source.othersSubtitle,
+                othersComp: source.othersComp,
+                othersTournamentLogo: source.othersTournamentLogo,
+                othersLogoWhite: source.othersLogoWhite,
+                othersInfoWhite: source.othersInfoWhite,
+                othersTeam1Name: source.othersTeam1Name,
+                othersTeam2Name: source.othersTeam2Name,
+                othersTeam1Logo: source.othersTeam1Logo,
+                othersTeam2Logo: source.othersTeam2Logo,
+                othersScore1: source.othersScore1,
+                othersScore2: source.othersScore2,
+                othersColor1: source.othersColor1,
+                othersColor2: source.othersColor2
+            });
+
+            const getPositionsSnapshot = (source) => ({
+                positionsMode: source.positionsMode,
+                positionsTitle: source.positionsTitle,
+                positionsSubtitle: source.positionsSubtitle,
+                positionsRows: Array.isArray(source.positionsRows) ? source.positionsRows.map(row => ({ ...row })) : [],
+                positionsTournamentLogo: source.positionsTournamentLogo
+            });
+
             const applyOthersPreset = (type = 'reserva') => {
                 const reserveLogo = LEAGUES_DB.find(l => l.name.includes('Torneo Proyección'))?.url || null;
                 const femaleLogo = LEAGUES_DB.find(l => l.name.includes('Femenino'))?.url || null;
                 const genericLogo = LEAGUES_DB.find(l => l.name.includes('Liga Profesional'))?.url || null;
-                if (type === 'femenino') {
-                    setData(prev => ({
-                        ...prev,
-                        othersTournamentType: 'femenino',
-                        othersSubtitle: 'FEMENINO',
+
+                setData(prev => {
+                    const currentType = prev.othersTournamentType || 'reserva';
+                    othersMemoryRef.current[currentType] = getOthersSnapshot(prev);
+
+                    if (othersMemoryRef.current[type]) {
+                        return { ...prev, ...othersMemoryRef.current[type], othersTournamentType: type };
+                    }
+
+                    if (type === 'femenino') {
+                        const next = {
+                            othersTournamentType: 'femenino',
+                            othersTitle: '',
+                            othersSubtitle: 'FEMENINO',
+                            othersComp: 'ÚLTIMO RESULTADO',
+                            othersTournamentLogo: femaleLogo,
+                            othersTeam1Name: 'SAN LORENZO',
+                            othersTeam2Name: 'TALLERES',
+                            othersTeam1Logo: getTeamLogo('San Lorenzo'),
+                            othersTeam2Logo: getTeamLogo('Talleres'),
+                            othersScore1: '3',
+                            othersScore2: '0',
+                            othersColor1: '#8B1E2D',
+                            othersColor2: '#0F3577'
+                        };
+                        othersMemoryRef.current[type] = next;
+                        return { ...prev, ...next };
+                    }
+
+                    if (type === 'otro') {
+                        const next = {
+                            othersTournamentType: 'otro',
+                            othersTitle: '',
+                            othersSubtitle: 'OTRO',
+                            othersComp: 'RESULTADO',
+                            othersTournamentLogo: genericLogo,
+                            othersTeam1Name: 'EQUIPO 1',
+                            othersTeam2Name: 'EQUIPO 2',
+                            othersTeam1Logo: null,
+                            othersTeam2Logo: null,
+                            othersScore1: '0',
+                            othersScore2: '0',
+                            othersColor1: '#334155',
+                            othersColor2: '#1e293b'
+                        };
+                        othersMemoryRef.current[type] = next;
+                        return { ...prev, ...next };
+                    }
+
+                    const next = {
+                        othersTournamentType: 'reserva',
+                        othersTitle: '',
+                        othersSubtitle: 'TORNEO PROYECCIÓN',
                         othersComp: 'ÚLTIMO RESULTADO',
-                        othersTournamentLogo: femaleLogo,
-                        othersTeam1Name: 'SAN LORENZO',
-                        othersTeam2Name: 'TALLERES',
-                        othersTeam1Logo: getTeamLogo('San Lorenzo'),
-                        othersTeam2Logo: getTeamLogo('Talleres'),
-                        othersScore1: '3',
-                        othersScore2: '0',
-                        othersColor1: '#8B1E2D',
-                        othersColor2: '#0F3577'
-                    }));
-                    return;
-                }
-                if (type === 'otro') {
-                    setData(prev => ({
-                        ...prev,
-                        othersTournamentType: 'otro',
-                        othersSubtitle: 'OTRO',
-                        othersComp: 'RESULTADO',
-                        othersTournamentLogo: genericLogo,
-                        othersTeam1Name: 'EQUIPO 1',
-                        othersTeam2Name: 'EQUIPO 2',
-                        othersTeam1Logo: null,
-                        othersTeam2Logo: null,
+                        othersTournamentLogo: reserveLogo,
+                        othersTeam1Name: 'TALLERES',
+                        othersTeam2Name: 'GIMNASIA MENDOZA',
+                        othersTeam1Logo: getTeamLogo('Talleres'),
+                        othersTeam2Logo: getTeamLogo('Gimnasia Mza') || getTeamLogo('Gimnasia Mendoza'),
                         othersScore1: '0',
                         othersScore2: '0',
-                        othersColor1: '#334155',
-                        othersColor2: '#1e293b'
-                    }));
-                    return;
-                }
-                setData(prev => ({
-                    ...prev,
-                    othersTournamentType: 'reserva',
-                    othersTitle: '',
-                othersSubtitle: 'TORNEO PROYECCIÓN',
-                    othersComp: 'ÚLTIMO RESULTADO',
-                    othersTournamentLogo: reserveLogo,
-                    othersTeam1Name: 'TALLERES',
-                    othersTeam2Name: 'GIMNASIA MENDOZA',
-                    othersTeam1Logo: getTeamLogo('Talleres'),
-                    othersTeam2Logo: getTeamLogo('Gimnasia Mza') || getTeamLogo('Gimnasia Mendoza'),
-                    othersScore1: '0',
-                    othersScore2: '0',
-                    othersColor1: '#0F3577',
-                    othersColor2: '#334155'
-                }));
+                        othersColor1: '#0F3577',
+                        othersColor2: '#334155'
+                    };
+                    othersMemoryRef.current[type] = next;
+                    return { ...prev, ...next };
+                });
             };
 
             const applyPositionsPreset = (type = 'lpf') => {
@@ -832,16 +1106,27 @@
                         ]
                     }
                 };
-                const preset = presets[type] || presets.lpf;
-                setData(prev => ({
-                    ...prev,
-                    positionsMode: type,
-                    positionsTitle: preset.title,
-                    positionsSubtitle: preset.subtitle,
-                    positionsRows: preset.rows.map((r, idx) => ({ pos: idx + 1, team: r[0], pts: r[1], dg: r[2], pj: r[3], logo: getTeamLogo(r[0]) })),
-                    resTournamentLogo: type === 'lpf' ? preset.logo || prev.resTournamentLogo : prev.resTournamentLogo,
-                    positionsTournamentLogo: preset.logo
-                }));
+
+                setData(prev => {
+                    const currentType = prev.positionsMode || 'lpf';
+                    positionsMemoryRef.current[currentType] = getPositionsSnapshot(prev);
+
+                    if (positionsMemoryRef.current[type]) {
+                        return { ...prev, ...positionsMemoryRef.current[type], positionsMode: type };
+                    }
+
+                    const preset = presets[type] || presets.lpf;
+                    const next = {
+                        positionsMode: type,
+                        positionsTitle: preset.title,
+                        positionsSubtitle: preset.subtitle,
+                        positionsRows: preset.rows.map((r, idx) => ({ pos: idx + 1, team: r[0], pts: r[1], dg: r[2], pj: r[3], logo: getTeamLogo(r[0]) })),
+                        resTournamentLogo: type === 'lpf' ? preset.logo || prev.resTournamentLogo : prev.resTournamentLogo,
+                        positionsTournamentLogo: preset.logo
+                    };
+                    positionsMemoryRef.current[type] = getPositionsSnapshot(next);
+                    return { ...prev, ...next };
+                });
             };
 
             const fontWeightClass = data.useBold ? 'force-bold' : 'font-normal';
@@ -860,7 +1145,7 @@
 
             const getFusionPreset = (mode = 'normal') => {
                 const presets = {
-                    normal: { tint: 'rgba(255,255,255,0)', blend: 'normal', extraFilter: 'contrast(1.06) saturate(1.04)', opacity: 1 },
+                    normal: { tint: 'rgba(255,255,255,0)', blend: 'normal', extraFilter: 'contrast(1.06) saturate(1.04)', opacity: baseLayerOpacity },
                     multiply: { tint: 'rgba(255,255,255,0)', blend: 'multiply', extraFilter: 'contrast(1.12) saturate(1.02)', opacity: 1 },
                     screen: { tint: 'rgba(255,255,255,0)', blend: 'screen', extraFilter: 'brightness(1.05) contrast(1.06)', opacity: 1 },
                     overlay: { tint: 'rgba(255,255,255,0)', blend: 'overlay', extraFilter: 'contrast(1.12) saturate(1.08)', opacity: 1 },
@@ -1172,19 +1457,31 @@
                         height: '1350px'
                     };
 
-                    if (window.htmlToImage && !isMobile) {
+                    if (window.htmlToImage) {
                         try {
                             blob = await window.htmlToImage.toBlob(canvasRef.current, {
                                 cacheBust: true,
-                                pixelRatio: 2.5,
+                                pixelRatio: isMobile ? 2.2 : 2.8,
                                 backgroundColor: THEME.bg,
                                 style: commonStyle,
                                 skipAutoScale: true,
                                 includeQueryParams: true
                             });
                         } catch (e) {
-                            console.warn('html-to-image desktop falló:', e);
+                            console.warn('html-to-image falló:', e);
                         }
+                    }
+
+                    if (!blob && window.htmlToImage) {
+                        const dataUrl = await window.htmlToImage.toPng(canvasRef.current, {
+                            cacheBust: true,
+                            pixelRatio: isMobile ? 2.1 : 2.6,
+                            backgroundColor: THEME.bg,
+                            style: commonStyle,
+                            skipAutoScale: true,
+                            includeQueryParams: true
+                        });
+                        blob = dataUrlToBlob(dataUrl);
                     }
 
                     if (!blob && window.html2canvas) {
@@ -1211,18 +1508,6 @@
                             }
                         });
                         blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
-                    }
-
-                    if (!blob && window.htmlToImage) {
-                        const dataUrl = await window.htmlToImage.toPng(canvasRef.current, {
-                            cacheBust: true,
-                            pixelRatio: isMobile ? 1.75 : 2,
-                            backgroundColor: THEME.bg,
-                            style: commonStyle,
-                            skipAutoScale: true,
-                            includeQueryParams: true
-                        });
-                        blob = dataUrlToBlob(dataUrl);
                     }
 
                     if (!blob) throw new Error('No se pudo generar la imagen.');
@@ -1283,20 +1568,23 @@
                 );
             };
 
-            const PatternFusionText = ({ textValue, y, fontSize, blendMode = 'normal', hollow = false, fallbackColor = '#FFFFFF', strokeWidth = 18, letterSpacing = 6, shadowOpacity = data.hjShadow ?? 0.85, centerX = 540 }) => {
+            const PatternFusionText = ({ textValue, y, fontSize, blendMode = 'normal', hollow = false, fallbackColor = '#FFFFFF', strokeWidth = 18, letterSpacing = 6, shadowOpacity = data.hjShadow ?? 0.85, centerX = 540, anchor = 'center' }) => {
                 const imageLayer = image || data.hjOverlayUrl || '';
                 const mixMode = getSafeTextBlendMode(blendMode);
                 const bgSize = `${Math.max(100, Math.round(100 * imageScale))}% auto`;
                 const bgPos = `calc(50% + ${imagePos.x}px) calc(50% + ${imagePos.y}px)`;
                 const shadow = shadowOpacity > 0 ? `0 0 16px rgba(0,0,0,${Math.min(0.7, shadowOpacity * 0.72)}), 0 12px 28px rgba(0,0,0,${shadowOpacity})` : 'none';
                 const solidStroke = hollow ? `${Math.max(2, strokeWidth * 0.34)}px ${fallbackColor}` : '0px transparent';
+                const fusedModeActive = !!imageLayer && mixMode !== 'normal';
+                const baseLayerOpacity = fusedModeActive ? 0.16 : 1;
+                const anchorTransforms = { start: 'translate(0, -50%)', center: 'translate(-50%, -50%)', end: 'translate(-100%, -50%)' };
                 return (
                     <div
                         className="absolute pointer-events-none whitespace-nowrap uppercase"
                         style={{
                             left: `${centerX}px`,
                             top: `${y}px`,
-                            transform: 'translate(-50%, -50%)',
+                            transform: anchorTransforms[anchor] || 'translate(-50%, -50%)',
                             fontFamily: 'Azonix, sans-serif',
                             fontSize: `${fontSize}px`,
                             letterSpacing: `${letterSpacing}px`,
@@ -1304,6 +1592,7 @@
                             isolation: 'isolate'
                         }}
                     >
+                        <span style={{ opacity: 0, userSelect: 'none' }}>{textValue}</span>
                         {!hollow && (
                             <div
                                 style={{
@@ -1334,7 +1623,7 @@
                                     WebkitTextFillColor: 'transparent',
                                     mixBlendMode: mixMode,
                                     filter: 'none',
-                                    opacity: hollow ? 1 : 0.82,
+                                    opacity: hollow ? 1 : (fusedModeActive ? 0.96 : 0.84),
                                     textShadow: shadow,
                                     WebkitTextStroke: hollow ? solidStroke : '0px transparent'
                                 }}
@@ -1623,8 +1912,8 @@
                         <SideRibbon text="HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA - HOY JUEGA" side={isLeft ? 'left' : 'right'} fontSize={48} />
 
                         <div className="absolute inset-0 z-30 pointer-events-none select-none">
-                            <PatternFusionText textValue={data.hjTextLine1} y={Number(data.hjTextY1) || 598} fontSize={112} blendMode={data.hjTextBlendMode1} hollow={data.hjTextHollow1} fallbackColor={data.hjTextColor1} strokeWidth={18} letterSpacing={8} shadowOpacity={0.97} centerX={visualCenterX} />
-                            <PatternFusionText textValue={data.hjTextLine2} y={Number(data.hjTextY2) || 722} fontSize={132} blendMode={data.hjTextBlendMode2} hollow={data.hjTextHollow2} fallbackColor={data.hjTextColor2} strokeWidth={14} letterSpacing={10} shadowOpacity={0.99} centerX={visualCenterX} />
+                            <PatternFusionText textValue={data.hjTextLine1} y={Number(data.hjTextY1) || 598} fontSize={112} blendMode={data.hjTextBlendMode1} hollow={data.hjTextHollow1} fallbackColor={data.hjTextColor1} strokeWidth={18} letterSpacing={8} shadowOpacity={0.97} centerX={visualCenterX} anchor={data.hjTextAnchor || 'center'} />
+                            <PatternFusionText textValue={data.hjTextLine2} y={Number(data.hjTextY2) || 722} fontSize={132} blendMode={data.hjTextBlendMode2} hollow={data.hjTextHollow2} fallbackColor={data.hjTextColor2} strokeWidth={14} letterSpacing={10} shadowOpacity={0.99} centerX={visualCenterX} anchor={data.hjTextAnchor || 'center'} />
                         </div>
                     </div>
                 );
@@ -1832,7 +2121,7 @@
                         <div className="w-full md:w-[370px] lg:w-[390px] bg-slate-800 border-r border-slate-700 flex flex-col h-screen z-50 shadow-xl relative">
                             <div className="p-4 border-b border-slate-700 flex justify-between items-center"><h1 className="text-xl font-bold text-blue-400 flex items-center gap-2"><Layout size={20}/> EDITOR</h1></div>
                             <div className="p-2 grid grid-cols-4 gap-1 border-b border-slate-700">
-                                {Object.entries(TEMPLATES).map(([key, val]) => <button key={val} onClick={() => { setActiveTemplate(val); if (val === TEMPLATES.HOY_JUEGA) applyNextMatchPreset(); if (val === TEMPLATES.RESULTADO_FINAL) applyLastFirstDivisionPreset(); if (val === TEMPLATES.JUVENILES) applyJuvenilesPreset(); if (val === TEMPLATES.OTROS_RESULTADOS) applyOthersPreset(data.othersTournamentType || 'reserva'); if (val === TEMPLATES.POSICIONES) applyPositionsPreset(data.positionsMode || 'lpf'); }} className={`p-2 rounded text-[9px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'} col-span-2 md:col-span-1`}>{key.replace('_', ' ')}</button>)}
+                                {Object.entries(TEMPLATES).map(([key, val]) => <button key={val} onClick={() => { setActiveTemplate(val); if (val === TEMPLATES.HOY_JUEGA) applyNextMatchPreset(); if (val === TEMPLATES.RESULTADO_FINAL) applyLastFirstDivisionPreset(); }} className={`p-2 rounded text-[9px] font-bold uppercase ${activeTemplate === val ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'} col-span-2 md:col-span-1`}>{key.replace('_', ' ')}</button>)}
                             </div>
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
                                 <div className="space-y-4 bg-slate-700/50 p-3 rounded">
@@ -1885,7 +2174,11 @@
                                             <input type="text" value={data.results6Title} onChange={(e) => handleInputChange('results6Title', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
                                             <input type="text" value={data.results6Subtitle} onChange={(e) => handleInputChange('results6Subtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
                                             <input type="text" value={data.results6Badge} onChange={(e) => handleInputChange('results6Badge', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Texto cinta" />
-                                            <button onClick={applyJuvenilesPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR ÚLTIMA FECHA JUVENILES</button>
+                                            <button onClick={applyJuvenilesPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR EJEMPLO JUVENILES</button>
+                                            <input type="text" value={sheetSources.juveniles} onChange={(e) => updateSheetSource('juveniles', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]" placeholder="URL hoja Juveniles" />
+                                            <button onClick={() => loadSheetOptions('juveniles', 'juveniles')} className="w-full bg-emerald-600 hover:bg-emerald-500 rounded py-2 text-xs font-bold">ACTUALIZAR DESDE LA HOJA</button>
+                                            <select value={sheetSelections.juveniles} onChange={(e) => updateSheetSelection('juveniles', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="">Elegir jornada/partido</option>{sheetOptions.juveniles.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+                                            <button onClick={applyJuvenilesFromSheet} className="w-full bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">APLICAR JUVENILES SELECCIONADO</button>
                                         </div>
                                         <div className="space-y-2">
                                             {data.results6Rows.map((row, i) => (
@@ -1909,9 +2202,15 @@
                                     <div className="space-y-4">
                                         <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
                                             <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Torneo Proyección</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+                                            {data.othersTournamentType !== 'otro' && <>
+                                                <input type="text" value={getOthersCurrentSheetSource()} onChange={(e) => updateSheetSource(getOthersCurrentSheetKey(), e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]" placeholder={getOthersPlaceholder()} />
+                                                <button onClick={() => loadSheetOptions(getOthersCurrentSheetKey(), 'matches')} className="w-full bg-emerald-600 hover:bg-emerald-500 rounded py-2 text-xs font-bold">{getOthersCurrentLoadLabel()}</button>
+                                                <select value={getOthersCurrentSelection()} onChange={(e) => updateSheetSelection(getOthersCurrentSheetKey(), e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="">Elegir partido</option>{getOthersCurrentSheetOptions().map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+                                                <button onClick={() => applyOthersFromSheet(data.othersTournamentType)} className="w-full bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">{getOthersApplyLabel()}</button>
+                                            </>}
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR PROYECCIÓN</button>
-                                                <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR FEMENINO</button>
+                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR EJEMPLO PROYECCIÓN</button>
+                                                <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR EJEMPLO FEMENINO</button>
                                             </div>
                                             <input type="text" value={data.othersTitle} onChange={(e) => handleInputChange('othersTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
                                             <input type="text" value={data.othersSubtitle} onChange={(e) => handleInputChange('othersSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
@@ -1921,6 +2220,10 @@
                                             <div className="grid grid-cols-2 gap-2">
                                                 <input type="text" value={data.othersTeam1Name} onChange={(e) => handleInputChange('othersTeam1Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 1" />
                                                 <input type="text" value={data.othersTeam2Name} onChange={(e) => handleInputChange('othersTeam2Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 2" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <select className="w-full bg-slate-900 p-2 rounded text-[10px]" value={data.othersTeam1Logo || ''} onChange={(e) => handleInputChange('othersTeam1Logo', e.target.value || null)}><option value="">Escudo equipo 1</option>{TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}</select>
+                                                <select className="w-full bg-slate-900 p-2 rounded text-[10px]" value={data.othersTeam2Logo || ''} onChange={(e) => handleInputChange('othersTeam2Logo', e.target.value || null)}><option value="">Escudo equipo 2</option>{TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}</select>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2">
                                                 <input type="text" value={data.othersScore1} onChange={(e) => handleInputChange('othersScore1', e.target.value)} className="bg-slate-900 p-2 rounded text-xs text-center font-bold font-talleres" placeholder="0" />
@@ -2027,7 +2330,11 @@
                                             <input type="text" value={data.results6Title} onChange={(e) => handleInputChange('results6Title', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
                                             <input type="text" value={data.results6Subtitle} onChange={(e) => handleInputChange('results6Subtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
                                             <input type="text" value={data.results6Badge} onChange={(e) => handleInputChange('results6Badge', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Texto cinta" />
-                                            <button onClick={applyJuvenilesPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR ÚLTIMA FECHA JUVENILES</button>
+                                            <button onClick={applyJuvenilesPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR EJEMPLO JUVENILES</button>
+                                            <input type="text" value={sheetSources.juveniles} onChange={(e) => updateSheetSource('juveniles', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]" placeholder="URL hoja Juveniles" />
+                                            <button onClick={() => loadSheetOptions('juveniles', 'juveniles')} className="w-full bg-emerald-600 hover:bg-emerald-500 rounded py-2 text-xs font-bold">ACTUALIZAR DESDE LA HOJA</button>
+                                            <select value={sheetSelections.juveniles} onChange={(e) => updateSheetSelection('juveniles', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="">Elegir jornada/partido</option>{sheetOptions.juveniles.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+                                            <button onClick={applyJuvenilesFromSheet} className="w-full bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">APLICAR JUVENILES SELECCIONADO</button>
                                         </div>
                                         <div className="space-y-2">
                                             {data.results6Rows.map((row, i) => (
@@ -2051,9 +2358,15 @@
                                     <div className="space-y-4">
                                         <div className="bg-slate-800 p-3 rounded border border-slate-600 space-y-2">
                                             <label className="text-xs font-bold text-blue-300">OTROS RESULTADOS</label><p className="text-[10px] text-slate-400">Podés pegar o subir una imagen para usarla de fondo en esta pieza.</p><select value={data.othersTournamentType} onChange={(e) => applyOthersPreset(e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="reserva">Torneo Proyección</option><option value="femenino">Femenino</option><option value="otro">Otro</option></select>
+                                            {data.othersTournamentType !== 'otro' && <>
+                                                <input type="text" value={getOthersCurrentSheetSource()} onChange={(e) => updateSheetSource(getOthersCurrentSheetKey(), e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]" placeholder={getOthersPlaceholder()} />
+                                                <button onClick={() => loadSheetOptions(getOthersCurrentSheetKey(), 'matches')} className="w-full bg-emerald-600 hover:bg-emerald-500 rounded py-2 text-xs font-bold">{getOthersCurrentLoadLabel()}</button>
+                                                <select value={getOthersCurrentSelection()} onChange={(e) => updateSheetSelection(getOthersCurrentSheetKey(), e.target.value)} className="w-full bg-slate-900 p-2 rounded text-xs"><option value="">Elegir partido</option>{getOthersCurrentSheetOptions().map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+                                                <button onClick={() => applyOthersFromSheet(data.othersTournamentType)} className="w-full bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">{getOthersApplyLabel()}</button>
+                                            </>}
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR PROYECCIÓN</button>
-                                                <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR FEMENINO</button>
+                                                <button onClick={() => applyOthersPreset('reserva')} className="bg-blue-600 hover:bg-blue-500 rounded py-2 text-xs font-bold">CARGAR EJEMPLO PROYECCIÓN</button>
+                                                <button onClick={() => applyOthersPreset('femenino')} className="bg-slate-700 hover:bg-slate-600 rounded py-2 text-xs font-bold">CARGAR EJEMPLO FEMENINO</button>
                                             </div>
                                             <input type="text" value={data.othersTitle} onChange={(e) => handleInputChange('othersTitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm font-bold" placeholder="Título" />
                                             <input type="text" value={data.othersSubtitle} onChange={(e) => handleInputChange('othersSubtitle', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-sm" placeholder="Subtítulo" />
@@ -2063,6 +2376,10 @@
                                             <div className="grid grid-cols-2 gap-2">
                                                 <input type="text" value={data.othersTeam1Name} onChange={(e) => handleInputChange('othersTeam1Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 1" />
                                                 <input type="text" value={data.othersTeam2Name} onChange={(e) => handleInputChange('othersTeam2Name', e.target.value)} className="bg-slate-900 p-2 rounded text-xs" placeholder="Equipo 2" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <select className="w-full bg-slate-900 p-2 rounded text-[10px]" value={data.othersTeam1Logo || ''} onChange={(e) => handleInputChange('othersTeam1Logo', e.target.value || null)}><option value="">Escudo equipo 1</option>{TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}</select>
+                                                <select className="w-full bg-slate-900 p-2 rounded text-[10px]" value={data.othersTeam2Logo || ''} onChange={(e) => handleInputChange('othersTeam2Logo', e.target.value || null)}><option value="">Escudo equipo 2</option>{TEAMS_DB.map((t, i) => <option key={i} value={t.url}>{t.name}</option>)}</select>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2">
                                                 <input type="text" value={data.othersScore1} onChange={(e) => handleInputChange('othersScore1', e.target.value)} className="bg-slate-900 p-2 rounded text-xs text-center font-bold font-talleres" placeholder="0" />
@@ -2084,22 +2401,37 @@
                                     <div className="space-y-6">
                                         {activeTemplate === TEMPLATES.HOY_JUEGA && (
                                             <div className="bg-slate-800 p-2 rounded space-y-3 border border-slate-600 mb-4">
+                                                <div className="bg-slate-900/70 border border-slate-700 rounded p-2 space-y-2">
+                                                <label className="text-[10px] font-bold text-emerald-300">PARTIDOS DESDE HOJA</label>
+                                                <p className="text-[10px] text-slate-400">Pegá una URL publicada de Google Sheets (o CSV), cargá los partidos y elegí uno para Hoy Juega o Resultado Final.</p>
+                                                <input type="text" value={sheetSources.hoyFinal} onChange={(e) => updateSheetSource('hoyFinal', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]" placeholder="URL hoja Hoy Juega / Resultado Final" />
+                                                <button onClick={() => loadSheetOptions('hoyFinal', 'matches')} className="w-full bg-emerald-600 hover:bg-emerald-500 rounded py-2 text-[10px] font-bold">CARGAR PARTIDOS DE LA HOJA</button>
+                                                <select value={sheetSelections.hoy} onChange={(e) => updateSheetSelection('hoy', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]"><option value="">Elegir partido para Hoy Juega</option>{sheetOptions.hoyFinal.map(item => <option key={`h-${item.value}`} value={item.value}>{item.label}</option>)}</select>
+                                                <button onClick={applyHoyFromSheet} className="w-full bg-slate-700 hover:bg-slate-600 rounded py-2 text-[10px] font-bold">APLICAR A HOY JUEGA</button>
+                                                <select value={sheetSelections.final} onChange={(e) => updateSheetSelection('final', e.target.value)} className="w-full bg-slate-900 p-2 rounded text-[10px]"><option value="">Elegir partido para Resultado Final</option>{sheetOptions.hoyFinal.map(item => <option key={`f-${item.value}`} value={item.value}>{item.label}</option>)}</select>
+                                                <button onClick={applyResultadoFinalFromSheet} className="w-full bg-slate-700 hover:bg-slate-600 rounded py-2 text-[10px] font-bold">APLICAR A RESULTADO FINAL</button>
+                                            </div>
                                                 <label className="text-[10px] font-bold text-blue-300">TEXTOS (HOY JUEGA)</label>
                                                 <button onClick={applyNextMatchPreset} className="w-full bg-blue-600 hover:bg-blue-500 rounded py-2 text-[10px] font-bold">CARGAR PRÓXIMO PARTIDO</button><div className="flex items-center gap-2"><span className="text-[10px] text-slate-400 w-20">Sombra</span><input type="range" min="0" max="1" step="0.05" value={data.hjShadow ?? 0.92} onChange={(e) => handleInputChange('hjShadow', parseFloat(e.target.value))} className="w-full" /></div>
 
                                                 <div className="bg-slate-900/70 border border-slate-700 rounded p-2 space-y-2">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Alineación manual del texto</span>
-                                                        <button onClick={() => { handleInputChange('hjTextCenterX', 540); handleInputChange('hjTextY1', 598); handleInputChange('hjTextY2', 722); }} className="bg-blue-600 hover:bg-blue-500 rounded px-2 py-1 text-[9px] font-bold">CENTRO INICIAL / RESET</button>
+                                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Alineación manual del texto (inicia centrado en la pieza)</span>
+                                                        <button onClick={() => { handleInputChange('hjTextAnchor', 'center'); handleInputChange('hjTextCenterX', 540); handleInputChange('hjTextY1', 598); handleInputChange('hjTextY2', 722); }} className="bg-blue-600 hover:bg-blue-500 rounded px-2 py-1 text-[9px] font-bold">CENTRADO / RESET</button>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-2">
-                                                        <button onClick={() => handleInputChange('hjTextCenterX', -450)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">MUY IZQ</button>
+                                                        <button onClick={() => handleInputChange('hjTextCenterX', 120)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">IZQ</button>
                                                         <button onClick={() => handleInputChange('hjTextCenterX', 540)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">CENTRO</button>
-                                                        <button onClick={() => handleInputChange('hjTextCenterX', 1350)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">MUY DER</button>
+                                                        <button onClick={() => handleInputChange('hjTextCenterX', 960)} className="bg-slate-700 hover:bg-slate-600 rounded py-1 text-[9px] font-bold">DER</button>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <button onClick={() => handleInputChange('hjTextAnchor', 'start')} className={`rounded py-1 text-[9px] font-bold ${data.hjTextAnchor === 'start' ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>ARRANCA EN X</button>
+                                                        <button onClick={() => handleInputChange('hjTextAnchor', 'center')} className={`rounded py-1 text-[9px] font-bold ${data.hjTextAnchor === 'center' ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>CENTRADO</button>
+                                                        <button onClick={() => handleInputChange('hjTextAnchor', 'end')} className={`rounded py-1 text-[9px] font-bold ${data.hjTextAnchor === 'end' ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600'}`}>TERMINA EN X</button>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-slate-400 w-24">Centro X</span>
-                                                        <input type="range" min="-800" max="1800" step="1" value={data.hjTextCenterX ?? 540} onChange={(e) => handleInputChange('hjTextCenterX', parseInt(e.target.value, 10))} className="w-full" />
+                                                        <input type="range" min="-250" max="1330" step="1" value={data.hjTextCenterX ?? 540} onChange={(e) => handleInputChange('hjTextCenterX', parseInt(e.target.value, 10))} className="w-full" />
                                                         <input type="number" value={data.hjTextCenterX ?? 540} onChange={(e) => handleInputChange('hjTextCenterX', parseInt(e.target.value || '540', 10))} className="w-20 bg-slate-800 p-1 rounded text-[10px] text-center font-bold" />
                                                     </div>
                                                     <div className="flex items-center gap-2">
