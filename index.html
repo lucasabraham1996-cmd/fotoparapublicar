@@ -1832,17 +1832,58 @@
                 );
             };
 
-            const renderNoticiaEspecial = () => (
-                <div className="w-[1080px] h-[1350px] relative flex items-center justify-center bg-[#021024] canvas-target">
-                    <div className="absolute inset-0 z-0 opacity-30"><BackgroundImage />
-                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}<div className="absolute inset-0 backdrop-grayscale" /></div>
-                    <div className="relative z-10 w-full h-full flex p-16 items-stretch">
-                        <div className="w-[45%] flex flex-col justify-center items-start pr-10 border-r-4 border-blue-600" style={{borderColor: THEME.accent}}><h1 className={`text-[6rem] font-azonix leading-[0.9] uppercase drop-shadow-2xl text-left ${titleGradientClass}`} style={{ wordBreak: 'normal', overflowWrap: 'break-word' }}>{data.specialTitle}</h1></div>
-                        <div className="w-[55%] flex flex-col pl-12 justify-center h-full"><div className="text-white text-3xl font-azonix leading-tight tracking-wide whitespace-pre-wrap drop-shadow-md">{data.specialBody}</div></div>
+            const getSpecialTitleAdaptiveStyle = (title = '') => {
+                const textValue = String(title || '').trim();
+                const length = textValue.length;
+                const longestWord = textValue.split(/\s+/).reduce((max, word) => Math.max(max, word.length), 0);
+                let fontSize = 96;
+                let lineHeight = 0.9;
+                let letterSpacing = '0.01em';
+
+                if (length > 22) fontSize = 88;
+                if (length > 30) fontSize = 78;
+                if (length > 40) fontSize = 68;
+                if (length > 52) fontSize = 58;
+                if (length > 66) fontSize = 50;
+                if (length > 82) fontSize = 44;
+                if (longestWord > 14) fontSize = Math.min(fontSize, 62);
+                if (longestWord > 18) fontSize = Math.min(fontSize, 54);
+                if (longestWord > 22) fontSize = Math.min(fontSize, 48);
+                if (length > 52) lineHeight = 0.95;
+                if (length > 70) lineHeight = 1;
+                if (length > 82) letterSpacing = '0';
+
+                return {
+                    fontSize: `${fontSize}px`,
+                    lineHeight,
+                    letterSpacing,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'anywhere',
+                    hyphens: 'auto',
+                    maxWidth: '100%',
+                    overflow: 'hidden'
+                };
+            };
+
+            const renderNoticiaEspecial = () => {
+                const specialTitleStyle = getSpecialTitleAdaptiveStyle(data.specialTitle);
+                return (
+                    <div className="w-[1080px] h-[1350px] relative bg-[#021024] overflow-hidden" onPaste={handleGlobalPaste}>
+                        <BackgroundImage />
+                        {data.gradientEnabled && <div style={{position:'absolute',inset:0,background:`linear-gradient(${data.gradientInvert?'to bottom':'to top'}, ${data.gradientColor1}, ${data.gradientColor2})`,mixBlendMode:'overlay',opacity:0.88}} />}
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-black/80" />
+                        <div className="absolute inset-0 z-10 p-16 flex items-stretch">
+                            <div className="w-[45%] flex flex-col justify-center items-start pr-10 border-r-4 border-blue-600 overflow-hidden" style={{ borderColor: THEME.accent }}>
+                                <h1 className={`font-azonix uppercase drop-shadow-2xl text-left ${titleGradientClass}`} style={specialTitleStyle}>{data.specialTitle}</h1>
+                            </div>
+                            <div className="w-[55%] flex flex-col pl-12 justify-center h-full overflow-hidden">
+                                <div className="text-white text-3xl font-azonix leading-tight tracking-wide whitespace-pre-wrap drop-shadow-md">{data.specialBody}</div>
+                            </div>
+                        </div>
+                        <div className="absolute bottom-12 right-12 z-20"><LogoComponent /></div>
                     </div>
-                    <div className="absolute bottom-12 right-12"><LogoComponent /></div>
-                </div>
-            );
+                );
+            };
 
             const renderNoticiaComun = () => (
                 <div className="w-[1080px] h-[1350px] relative bg-[#021024] canvas-target">
